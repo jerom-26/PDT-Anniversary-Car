@@ -588,7 +588,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e48ac840a40d9cf4aa451aaa66a8b1b9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VehicleSpawner
-  vehiclePrefab: {fileID: 2635693302487403980, guid: bd3e50c6369e377438a64e61f9e2a6a5, type: 3}
+  nftMetaDataFile: {fileID: 4900000, guid: ab9819d5d8e36a34f8a5ed543d2f20cd, type: 3}
+  vehicleData: {fileID: 11400000, guid: cab9c866605f5564d983f104a6261138, type: 2}
   spawnPoint: {fileID: 2132419772}
   cameraFollow: {fileID: 330585548}
 --- !u!4 &1976987147
