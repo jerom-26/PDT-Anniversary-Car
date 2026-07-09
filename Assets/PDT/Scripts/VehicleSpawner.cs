@@ -1,45 +1,80 @@
-using GLTFast.Schema;
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class VehicleSpawner : MonoBehaviour
 {
-    [SerializeField] private TextAsset nftMetaDataFile;
     [SerializeField] private VehicleData vehicleData;
     [SerializeField] private Transform spawnPoint;
     [SerializeField] private CameraFollow cameraFollow;
+    [SerializeField] private NFTMetadataReader metadataReader;
 
-    void Start()
+    private void Start()
     {
-        SpawnVehicle();
+        if (metadataReader == null)
+        {
+            metadataReader = GetComponent<NFTMetadataReader>();
+        }
+
+        if (metadataReader == null)
+        {
+            Debug.LogError("VehicleSpawner has no NFTMetadataReader assigned.");
+            return;
+        }
+        StartCoroutine(
+           metadataReader.LoadMetadata(
+               OnMetadataLoaded,
+               OnMetadataLoadFailed
+           )
+       );
     }
 
-    private void SpawnVehicle()
+    private void OnMetadataLoaded(NFTMetadata metadata)
     {
-        string ownedAssetID = ReadAssetIDFromMetadata();
+        string ownedAssetID = GetAssetIDFromMetadata(metadata);
 
-        GameObject spawnedVehicle = Instantiate(
-            vehicleData.VehiclePrefab,
-            spawnPoint.position,
-            spawnPoint.rotation
-        );
+        if (string.IsNullOrEmpty(ownedAssetID))
+        {
+            return;
+        }
 
-        Transform cameraTarget =
-            spawnedVehicle.transform.Find("CameraTarget");
-
-        cameraFollow.SetTarget(cameraTarget);
+        TrySpawnVehicle(ownedAssetID);
     }
 
-    private string ReadAssetIDFromMetadata()
+    private void OnMetadataLoadFailed(string errorMessage)
     {
-        NFTMetadata metadata = JsonUtility.FromJson<NFTMetadata>(nftMetaDataFile.text);
+        Debug.LogError(errorMessage);
+    }
 
-        foreach (NFTAttribute attribute in metadata.attributes)
-        { if (attribute != null && attribute.trait_types == "modelID")
+    private string GetAssetIDFromMetadata(NFTMetadata metadata)
+    {
+        if (metadata == null || metadata.attributes == null)
+        {
+            Debug.LogError(
+                "NFT metadata is invalid or does not contain attributes."
+            );
+
+            return null;
+        }
+
+        foreach(NFTAttribute attribute in metadata.attributes)
+        {
+            if(attribute != null && attribute.trait_type == "Asset ID")
             {
                 return attribute.value;
             }
         }
         return null;
     }
+    private void TrySpawnVehicle(string ownedAssetID)
+    {
+        GameObject spawnedVehicle = Instantiate(vehicleData.VehiclePrefab, spawnPoint.position, spawnPoint.rotation);
+
+        Transform cameraTarget = spawnedVehicle.transform.Find("CameraTarget");
+
+        cameraFollow.SetTarget(cameraTarget);
+        Debug.Log(
+            $"Ownership confirmed from remote NFT metadata. " +
+            $"Spawned vehicle: {vehicleData.DisplayName}"
+        );
+    }
+   
 }
