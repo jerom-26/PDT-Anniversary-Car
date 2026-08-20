@@ -2,13 +2,16 @@ using UnityEngine;
 using UnityEngine.Networking;
 using System;
 using System.Collections;
+
 public class NFTMetadataReader : MonoBehaviour
 {
-    [SerializeField] private string metadataURI = "ipfs://bafkreihjyr3xtxoc32t6roxu3ahhs47x3knschdf7bjrnsnke6a7du3otq";
-
     [SerializeField] private string ipfsGateway = "https://gateway.pinata.cloud/ipfs/";
 
-    public IEnumerator LoadMetadata(Action<NFTMetadata> onLoaded, Action<string> onError)
+    public IEnumerator LoadMetadata(
+        string metadataURI,
+        Action<NFTMetadata> onLoaded,
+        Action<string> onError
+    )
     {
         if (string.IsNullOrWhiteSpace(metadataURI))
         {
@@ -49,10 +52,13 @@ public class NFTMetadataReader : MonoBehaviour
 
         if (uri.StartsWith(ipfsPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            return ipfsGateway + uri.Substring(ipfsPrefix.Length);
+            string gateway = ipfsGateway.EndsWith("/")
+                ? ipfsGateway
+                : ipfsGateway + "/";
+
+            return gateway + uri.Substring(ipfsPrefix.Length).TrimStart('/');
         }
 
         return uri;
     }
-
 }

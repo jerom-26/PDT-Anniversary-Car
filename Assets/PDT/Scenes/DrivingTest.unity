@@ -570,6 +570,8 @@ GameObject:
   - component: {fileID: 1976987147}
   - component: {fileID: 1976987146}
   - component: {fileID: 1976987148}
+  - component: {fileID: 1976987149}
+  - component: {fileID: 1976987150}
   m_Layer: 0
   m_Name: VehicleSpawner
   m_TagString: Untagged
@@ -589,10 +591,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e48ac840a40d9cf4aa451aaa66a8b1b9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VehicleSpawner
-  vehicleData: {fileID: 11400000, guid: cab9c866605f5564d983f104a6261138, type: 2}
   spawnPoint: {fileID: 2132419772}
   cameraFollow: {fileID: 330585548}
-  metadataReader: {fileID: 1976987148}
 --- !u!4 &1976987147
 Transform:
   m_ObjectHideFlags: 0
@@ -620,8 +620,38 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6eb62e5e55389874b9b55added147c23, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NFTMetadataReader
-  metadataURI: ipfs://bafkreihjyr3xtxoc32t6roxu3ahhs47x3knschdf7bjrnsnke6a7du3otq
   ipfsGateway: https://gateway.pinata.cloud/ipfs/
+--- !u!114 &1976987149
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1976987145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 14fcd0f352044c1fb8583c2d2aa1e7f2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::OwnedVehicleRegistry
+  vehicleCatalog: {fileID: 11400000, guid: 5f11a0c2a6f94eb1a1209c54586d174e, type: 2}
+--- !u!114 &1976987150
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1976987145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2c81a501d164103bc422bf86ddc126e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::DevelopmentMetadataBootstrap
+  runOnStart: 1
+  developmentMetadataURI: ipfs://bafkreihjyr3xtxoc32t6roxu3ahhs47x3knschdf7bjrnsnke6a7du3otq
+  spawnUnlockedVehicle: 1
+  metadataReader: {fileID: 1976987148}
+  ownedVehicleRegistry: {fileID: 1976987149}
+  vehicleSpawner: {fileID: 1976987146}
 --- !u!1 &2132419771
 GameObject:
   m_ObjectHideFlags: 0
