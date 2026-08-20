@@ -559,6 +559,110 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &1972607773
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 710658489450244879, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6019781919744940759, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      propertyPath: m_Name
+      value: Reown AppKit
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6019781919744940759, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1972607775}
+    - targetCorrespondingSourceObject: {fileID: 6019781919744940759, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1972607778}
+  m_SourcePrefab: {fileID: 100100000, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+--- !u!1 &1972607774 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6019781919744940759, guid: fc9e7b2d2aa114b7684aede0fa95d202, type: 3}
+  m_PrefabInstance: {fileID: 1972607773}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1972607775
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1972607774}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5125f33fca5340d9a6b3cf396cfd5ebe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ReownWalletConnector
+  projectID: c7a0318253675c5d16112a2fb26baeb9
+  applicationName: PDT Anniversary Car
+  applicationDescription: Connect a wallet to unlock verified digital twin vehicles.
+  applicationURL: https://github.com/jerom-26/PDT-Anniversary-Car
+  applicationIconURL: https://raw.githubusercontent.com/reown-com/reown-dotnet/develop/media/appkit-icon.png
+  resumeSessionOnStart: 1
+  openModalWhenNoSession: 1
+--- !u!114 &1972607778
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1972607774}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d59a8024ed7045289d2f27d1c6622f88, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ERC721OwnershipReader
+  walletConnector: {fileID: 1972607775}
+  scanWhenWalletConnects: 1
+  contractAddress: 0x021Ae9C7E520B1EdFdE488A7Df3EEd9BfC5786F3
+  firstTokenID: 0
+  maximumTokenIDToScan: 1000
 --- !u!1 &1976987145
 GameObject:
   m_ObjectHideFlags: 0
@@ -572,6 +676,7 @@ GameObject:
   - component: {fileID: 1976987148}
   - component: {fileID: 1976987149}
   - component: {fileID: 1976987150}
+  - component: {fileID: 1976987151}
   m_Layer: 0
   m_Name: VehicleSpawner
   m_TagString: Untagged
@@ -631,7 +736,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 14fcd0f352044c1fb8583c2d2aa1e7f2, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OwnedVehicleRegistry
   vehicleCatalog: {fileID: 11400000, guid: 5f11a0c2a6f94eb1a1209c54586d174e, type: 2}
 --- !u!114 &1976987150
@@ -644,14 +749,31 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a2c81a501d164103bc422bf86ddc126e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DevelopmentMetadataBootstrap
-  runOnStart: 1
+  runOnStart: 0
   developmentMetadataURI: ipfs://bafkreihjyr3xtxoc32t6roxu3ahhs47x3knschdf7bjrnsnke6a7du3otq
   spawnUnlockedVehicle: 1
   metadataReader: {fileID: 1976987148}
   ownedVehicleRegistry: {fileID: 1976987149}
   vehicleSpawner: {fileID: 1976987146}
+--- !u!114 &1976987151
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1976987145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2198524a6dd04f50b28e97625c1055ee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VerifiedVehicleUnlockCoordinator
+  ownershipReader: {fileID: 1972607778}
+  metadataReader: {fileID: 1976987148}
+  ownedVehicleRegistry: {fileID: 1976987149}
+  vehicleSpawner: {fileID: 1976987146}
+  spawnFirstUnlockedVehicle: 1
 --- !u!1 &2132419771
 GameObject:
   m_ObjectHideFlags: 0
@@ -693,3 +815,4 @@ SceneRoots:
   - {fileID: 1433359899}
   - {fileID: 2132419772}
   - {fileID: 1976987147}
+  - {fileID: 1972607773}

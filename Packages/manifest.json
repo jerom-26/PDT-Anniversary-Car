@@ -1,5 +1,14 @@
 {
   "dependencies": {
+    "com.nethereum.unity": "6.1.0",
+    "com.reown.appkit.unity": "1.6.0",
+    "com.reown.core": "1.6.0",
+    "com.reown.core.crypto": "1.6.0",
+    "com.reown.sign": "1.6.0",
+    "com.reown.sign.nethereum": "1.6.0",
+    "com.reown.sign.nethereum.unity": "1.6.0",
+    "com.reown.sign.unity": "1.6.0",
+    "com.reown.unity.dependencies": "1.6.0",
     "com.unity.ai.navigation": "2.0.10",
     "com.unity.cloud.gltfast": "6.19.0",
     "com.unity.collab-proxy": "2.11.3",
@@ -11,6 +20,7 @@
     "com.unity.test-framework": "1.6.0",
     "com.unity.timeline": "1.8.10",
     "com.unity.ugui": "2.0.0",
+    "com.unity.vectorgraphics": "3.0.0-preview.7",
     "com.unity.visualscripting": "1.9.9",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.adaptiveperformance": "1.0.0",
@@ -46,5 +56,15 @@
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0"
-  }
+  },
+  "scopedRegistries": [
+    {
+      "name": "OpenUPM",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "com.reown",
+        "com.nethereum"
+      ]
+    }
+  ]
 }
