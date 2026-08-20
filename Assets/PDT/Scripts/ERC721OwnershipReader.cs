@@ -51,6 +51,7 @@ public class ERC721OwnershipReader : MonoBehaviour
     public event Action<VerifiedNFT> TokenVerified;
     public event Action<IReadOnlyList<VerifiedNFT>> OwnershipScanCompleted;
     public event Action<string> OwnershipScanFailed;
+    public event Action OwnershipCleared;
 
     private void OnEnable()
     {
@@ -79,6 +80,7 @@ public class ERC721OwnershipReader : MonoBehaviour
     {
         scanGeneration++;
         IsScanning = false;
+        ClearVerifiedTokens();
 
         if (walletConnector == null)
         {
@@ -121,7 +123,7 @@ public class ERC721OwnershipReader : MonoBehaviour
     {
         scanGeneration++;
         IsScanning = false;
-        verifiedTokens.Clear();
+        ClearVerifiedTokens();
     }
 
     private async Task ScanOwnershipAsync(
@@ -148,7 +150,7 @@ public class ERC721OwnershipReader : MonoBehaviour
         }
 
         IsScanning = true;
-        verifiedTokens.Clear();
+        ClearVerifiedTokens();
 
         try
         {
@@ -296,6 +298,17 @@ public class ERC721OwnershipReader : MonoBehaviour
         IsScanning = false;
         OwnershipScanFailed?.Invoke(message);
         Debug.LogError(message);
+    }
+
+    private void ClearVerifiedTokens()
+    {
+        if (verifiedTokens.Count == 0)
+        {
+            return;
+        }
+
+        verifiedTokens.Clear();
+        OwnershipCleared?.Invoke();
     }
 
     private static bool IsValidEVMAddress(string address)
