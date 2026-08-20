@@ -2,103 +2,88 @@ using UnityEngine;
 
 public class VehicleSpawner : MonoBehaviour
 {
-    [SerializeField] private VehicleData vehicleData;
     [SerializeField] private Transform spawnPoint;
     [SerializeField] private CameraFollow cameraFollow;
-    [SerializeField] private NFTMetadataReader metadataReader;
 
-    private void Start()
-    {
-        if (metadataReader == null)
-        {
-            metadataReader = GetComponent<NFTMetadataReader>();
-        }
+    private GameObject spawnedVehicle;
 
-        if (metadataReader == null)
-        {
-            Debug.LogError("VehicleSpawner has no NFTMetadataReader assigned.");
-            return;
-        }
-        StartCoroutine(
-           metadataReader.LoadMetadata(
-               OnMetadataLoaded,
-               OnMetadataLoadFailed
-           )
-       );
-    }
+    public GameObject SpawnedVehicle => spawnedVehicle;
 
-    private void OnMetadataLoaded(NFTMetadata metadata)
-    {
-        string ownedAssetID = GetAssetIDFromMetadata(metadata);
-
-        if (string.IsNullOrEmpty(ownedAssetID))
-        {
-            return;
-        }
-
-        TrySpawnVehicle(ownedAssetID);
-    }
-
-    private void OnMetadataLoadFailed(string errorMessage)
-    {
-        Debug.LogError(errorMessage);
-    }
-
-    private string GetAssetIDFromMetadata(NFTMetadata metadata)
-    {
-        if (metadata == null || metadata.attributes == null)
-        {
-            Debug.LogError(
-                "NFT metadata is invalid or does not contain attributes."
-            );
-            return null;
-        }
-
-        foreach (NFTAttribute attribute in metadata.attributes)
-        {
-            if (
-                attribute != null &&
-                (attribute.trait_type == "Asset ID" ||
-                 attribute.trait_type == "modelID")
-            )
-            {
-                return attribute.value;
-            }
-        }
-
-        Debug.LogError(
-            "Metadata does not contain an 'Asset ID' or 'modelID' attribute."
-        );
-
-        return null;
-    }
-
-    private void TrySpawnVehicle(string ownedAssetID)
+    public bool TrySpawn(VehicleData vehicleData)
     {
         if (vehicleData == null)
         {
             Debug.LogError("Vehicle Data is not assigned.");
-            return;
+            return false;
         }
 
-        if (ownedAssetID != vehicleData.AssetID)
+        if (vehicleData.VehiclePrefab == null)
+        {
+            Debug.LogError($"{vehicleData.DisplayName} has no vehicle prefab assigned.");
+            return false;
+        }
+
+        if (spawnPoint == null || cameraFollow == null)
+        {
+            Debug.LogError("VehicleSpawner is missing its spawn point or camera follow reference.");
+            return false;
+        }
+
+        GameObject nextVehicle = Instantiate(
+            vehicleData.VehiclePrefab,
+            spawnPoint.position,
+            spawnPoint.rotation
+        );
+
+        Transform cameraTarget = FindCameraTarget(nextVehicle.transform);
+
+        if (cameraTarget == null)
         {
             Debug.LogError(
-                $"Asset ID mismatch. Metadata: {ownedAssetID}, " +
-                $"Vehicle Data: {vehicleData.AssetID}"
+                $"{vehicleData.DisplayName} does not contain a CameraTarget transform."
             );
+            Destroy(nextVehicle);
+            return false;
+        }
+
+        if (spawnedVehicle != null)
+        {
+            Destroy(spawnedVehicle);
+        }
+
+        spawnedVehicle = nextVehicle;
+        cameraFollow.SetTarget(cameraTarget);
+
+        Debug.Log(
+            $"Spawned unlocked vehicle: {vehicleData.DisplayName} " +
+            $"({vehicleData.AssetID})"
+        );
+
+        return true;
+    }
+
+    public void Despawn()
+    {
+        if (spawnedVehicle == null)
+        {
             return;
         }
 
-        GameObject spawnedVehicle = Instantiate(vehicleData.VehiclePrefab, spawnPoint.position, spawnPoint.rotation);
-
-        Transform cameraTarget = spawnedVehicle.transform.Find("CameraTarget");
-
-        cameraFollow.SetTarget(cameraTarget);
-        Debug.Log(
-            $"Ownership confirmed from remote NFT metadata. " +
-            $"Spawned vehicle: {vehicleData.DisplayName}"
-        );
+        Destroy(spawnedVehicle);
+        spawnedVehicle = null;
+        cameraFollow.SetTarget(null);
     }
-   
+
+    private static Transform FindCameraTarget(Transform vehicleRoot)
+    {
+        foreach (Transform child in vehicleRoot.GetComponentsInChildren<Transform>(true))
+        {
+            if (child.name == "CameraTarget")
+            {
+                return child;
+            }
+        }
+
+        return null;
+    }
 }

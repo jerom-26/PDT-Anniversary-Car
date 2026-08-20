@@ -4,8 +4,8 @@
   "image": "ipfs://REPLACE_WITH_IMAGE_CID",
   "attributes": [
     {
-      "trait_type": "modelID",
-      "value": "PDT_DREAM_MOBILE_001"
+      "trait_type": "Asset ID",
+      "value": "HW-001"
     },
     {
       "trait_type": "manufacturer",
