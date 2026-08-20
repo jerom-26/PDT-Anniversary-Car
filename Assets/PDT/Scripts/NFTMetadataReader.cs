@@ -50,15 +50,34 @@ public class NFTMetadataReader : MonoBehaviour
     {
         const string ipfsPrefix = "ipfs://";
 
+        uri = uri.Trim();
+
+        string gateway = ipfsGateway.EndsWith("/")
+            ? ipfsGateway
+            : ipfsGateway + "/";
+
         if (uri.StartsWith(ipfsPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            string gateway = ipfsGateway.EndsWith("/")
-                ? ipfsGateway
-                : ipfsGateway + "/";
-
             return gateway + uri.Substring(ipfsPrefix.Length).TrimStart('/');
         }
 
+        if (IsLikelyIPFSCID(uri))
+        {
+            return gateway + uri;
+        }
+
         return uri;
+    }
+
+    private static bool IsLikelyIPFSCID(string value)
+    {
+        bool isCIDv0 =
+            value.Length == 46 &&
+            value.StartsWith("Qm", StringComparison.Ordinal);
+        bool isCIDv1 =
+            value.Length > 4 &&
+            value.StartsWith("baf", StringComparison.OrdinalIgnoreCase);
+
+        return isCIDv0 || isCIDv1;
     }
 }
