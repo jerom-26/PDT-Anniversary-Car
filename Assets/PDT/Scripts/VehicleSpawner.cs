@@ -51,21 +51,45 @@ public class VehicleSpawner : MonoBehaviour
             Debug.LogError(
                 "NFT metadata is invalid or does not contain attributes."
             );
-
             return null;
         }
 
-        foreach(NFTAttribute attribute in metadata.attributes)
+        foreach (NFTAttribute attribute in metadata.attributes)
         {
-            if(attribute != null && attribute.trait_type == "Asset ID")
+            if (
+                attribute != null &&
+                (attribute.trait_type == "Asset ID" ||
+                 attribute.trait_type == "modelID")
+            )
             {
                 return attribute.value;
             }
         }
+
+        Debug.LogError(
+            "Metadata does not contain an 'Asset ID' or 'modelID' attribute."
+        );
+
         return null;
     }
+
     private void TrySpawnVehicle(string ownedAssetID)
     {
+        if (vehicleData == null)
+        {
+            Debug.LogError("Vehicle Data is not assigned.");
+            return;
+        }
+
+        if (ownedAssetID != vehicleData.AssetID)
+        {
+            Debug.LogError(
+                $"Asset ID mismatch. Metadata: {ownedAssetID}, " +
+                $"Vehicle Data: {vehicleData.AssetID}"
+            );
+            return;
+        }
+
         GameObject spawnedVehicle = Instantiate(vehicleData.VehiclePrefab, spawnPoint.position, spawnPoint.rotation);
 
         Transform cameraTarget = spawnedVehicle.transform.Find("CameraTarget");

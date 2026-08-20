@@ -621,7 +621,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NFTMetadataReader
   metadataURI: ipfs://bafkreihjyr3xtxoc32t6roxu3ahhs47x3knschdf7bjrnsnke6a7du3otq
-  ipfsGateway: https://ipfs.io/ipfs/
+  ipfsGateway: https://gateway.pinata.cloud/ipfs/
 --- !u!1 &2132419771
 GameObject:
   m_ObjectHideFlags: 0

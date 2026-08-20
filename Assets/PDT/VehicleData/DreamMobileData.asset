@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f4892ffb7d27aaf4b953a5d57eb9da6e, type: 3}
   m_Name: DreamMobileData
   m_EditorClassIdentifier: Assembly-CSharp::VehicleData
-  modelID: PDT_DREAM_MOBILE_001
+  assetID: HW-001
   displayName: Mattel 80th Anniversary Dream Mobile
   vehiclePrefab: {fileID: 2635693302487403980, guid: bd3e50c6369e377438a64e61f9e2a6a5, type: 3}

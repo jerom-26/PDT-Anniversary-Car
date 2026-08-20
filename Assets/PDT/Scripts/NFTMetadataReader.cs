@@ -6,7 +6,7 @@ public class NFTMetadataReader : MonoBehaviour
 {
     [SerializeField] private string metadataURI = "ipfs://bafkreihjyr3xtxoc32t6roxu3ahhs47x3knschdf7bjrnsnke6a7du3otq";
 
-    [SerializeField] private string ipfsGateway = "https://ipfs.io/ipfs/";
+    [SerializeField] private string ipfsGateway = "https://gateway.pinata.cloud/ipfs/";
 
     public IEnumerator LoadMetadata(Action<NFTMetadata> onLoaded, Action<string> onError)
     {
