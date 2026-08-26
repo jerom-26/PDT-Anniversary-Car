@@ -644,7 +644,7 @@ MonoBehaviour:
   applicationDescription: Connect a wallet to unlock verified digital twin vehicles.
   applicationURL: https://github.com/jerom-26/PDT-Anniversary-Car
   applicationIconURL: https://raw.githubusercontent.com/reown-com/reown-dotnet/develop/media/appkit-icon.png
-  resumeSessionOnStart: 1
+  resumeSessionOnStart: 0
   openModalWhenNoSession: 1
 --- !u!114 &1972607778
 MonoBehaviour:
