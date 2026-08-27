@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Numerics;
 using System.Threading.Tasks;
 using Reown.AppKit.Unity;
@@ -8,12 +10,17 @@ using UnityEngine;
 [Serializable]
 public sealed class VerifiedNFT
 {
+    public TokenReference tokenReference;
     public string tokenID;
     public string metadataURI;
 
-    public VerifiedNFT(BigInteger tokenID, string metadataURI)
+    public VerifiedNFT(
+        TokenReference tokenReference,
+        string metadataURI
+    )
     {
-        this.tokenID = tokenID.ToString();
+        this.tokenReference = tokenReference;
+        tokenID = tokenReference.AssetID;
         this.metadataURI = metadataURI;
     }
 }
@@ -31,18 +38,20 @@ public class ERC721OwnershipReader : MonoBehaviour
     [SerializeField] private ReownWalletConnector walletConnector;
     [SerializeField] private bool scanWhenWalletConnects = true;
 
-    [Header("Polygon Amoy ERC-721")]
+    [Header("Approved PDT collection")]
+    [Tooltip("CAIP-2 chain identifier for Polygon Amoy.")]
+    [SerializeField] private string chain = "eip155:80002";
     [SerializeField] private string contractAddress =
         "0x021Ae9C7E520B1EdFdE488A7Df3EEd9BfC5786F3";
 
-    [Header("Token discovery")]
-    [Tooltip("DigitalTwins.sol starts minting sequential token IDs at 0.")]
-    [SerializeField] private int firstTokenID;
-    [Tooltip("Safety limit for this non-enumerable prototype contract.")]
-    [SerializeField] private int maximumTokenIDToScan = 1000;
+    [Header("Indexed token discovery")]
+    [Tooltip("Must implement ITokenDiscoveryService.")]
+    [SerializeField] private MonoBehaviour tokenDiscoveryServiceSource;
 
     private readonly List<VerifiedNFT> verifiedTokens =
         new List<VerifiedNFT>();
+    private ITokenDiscoveryService tokenDiscoveryService;
+    private Coroutine ownershipScanCoroutine;
     private int scanGeneration;
 
     public IReadOnlyList<VerifiedNFT> VerifiedTokens => verifiedTokens;
@@ -52,6 +61,11 @@ public class ERC721OwnershipReader : MonoBehaviour
     public event Action<IReadOnlyList<VerifiedNFT>> OwnershipScanCompleted;
     public event Action<string> OwnershipScanFailed;
     public event Action OwnershipCleared;
+
+    private void Awake()
+    {
+        TryResolveTokenDiscoveryService(out _);
+    }
 
     private void OnEnable()
     {
@@ -66,6 +80,12 @@ public class ERC721OwnershipReader : MonoBehaviour
 
     private void Start()
     {
+        if (!TryResolveTokenDiscoveryService(out string discoveryError))
+        {
+            Debug.LogError(discoveryError);
+            return;
+        }
+
         if (
             scanWhenWalletConnects &&
             walletConnector != null &&
@@ -79,7 +99,7 @@ public class ERC721OwnershipReader : MonoBehaviour
     private void OnDisable()
     {
         scanGeneration++;
-        IsScanning = false;
+        StopOwnershipScan();
         ClearVerifiedTokens();
 
         if (walletConnector == null)
@@ -91,11 +111,13 @@ public class ERC721OwnershipReader : MonoBehaviour
         walletConnector.WalletDisconnected -= HandleWalletDisconnected;
     }
 
-    public async void RefreshOwnership()
+    public void RefreshOwnership()
     {
         if (walletConnector == null)
         {
-            ReportFailure("ERC721OwnershipReader has no wallet connector assigned.");
+            ReportFailure(
+                "ERC721OwnershipReader has no wallet connector assigned."
+            );
             return;
         }
 
@@ -105,8 +127,21 @@ public class ERC721OwnershipReader : MonoBehaviour
             return;
         }
 
+        if (!TryResolveTokenDiscoveryService(out string discoveryError))
+        {
+            ReportFailure(discoveryError);
+            return;
+        }
+
+        StopOwnershipScan();
         int generation = ++scanGeneration;
-        await ScanOwnershipAsync(walletConnector.ConnectedAddress, generation);
+        ownershipScanCoroutine = StartCoroutine(
+            ScanOwnership(
+                walletConnector.ConnectedAddress,
+                tokenDiscoveryService,
+                generation
+            )
+        );
     }
 
     private void HandleWalletConnected(string walletAddress)
@@ -122,159 +157,405 @@ public class ERC721OwnershipReader : MonoBehaviour
     private void HandleWalletDisconnected()
     {
         scanGeneration++;
-        IsScanning = false;
+        StopOwnershipScan();
         ClearVerifiedTokens();
     }
 
-    private async Task ScanOwnershipAsync(
+    private IEnumerator ScanOwnership(
         string walletAddress,
+        ITokenDiscoveryService discoveryService,
         int generation
     )
     {
+        if (string.IsNullOrWhiteSpace(chain))
+        {
+            ReportFailureForGeneration(
+                "The approved PDT chain is not configured.",
+                generation
+            );
+            yield break;
+        }
+
         if (!IsValidEVMAddress(contractAddress))
         {
-            ReportFailure("The configured NFT contract address is invalid.");
-            return;
+            ReportFailureForGeneration(
+                "The configured NFT contract address is invalid.",
+                generation
+            );
+            yield break;
         }
 
         if (!IsValidEVMAddress(walletAddress))
         {
-            ReportFailure("Reown returned an invalid wallet address.");
-            return;
-        }
-
-        if (firstTokenID < 0 || maximumTokenIDToScan < firstTokenID)
-        {
-            ReportFailure("The token discovery range is invalid.");
-            return;
+            ReportFailureForGeneration(
+                "Reown returned an invalid wallet address.",
+                generation
+            );
+            yield break;
         }
 
         IsScanning = true;
         ClearVerifiedTokens();
 
-        try
-        {
-            BigInteger expectedBalance =
-                await AppKit.Evm.ReadContractAsync<BigInteger>(
+        if (
+            !TryStartTask(
+                () => AppKit.Evm.ReadContractAsync<BigInteger>(
                     contractAddress,
                     BalanceOfABI,
                     "balanceOf",
                     new object[] { walletAddress }
-                );
+                ),
+                out Task<BigInteger> balanceTask,
+                out string balanceStartError
+            )
+        )
+        {
+            ReportFailureForGeneration(
+                "NFT balance check failed: " + balanceStartError,
+                generation
+            );
+            yield break;
+        }
 
+        while (!balanceTask.IsCompleted)
+        {
             if (generation != scanGeneration)
             {
-                return;
+                yield break;
             }
 
-            Debug.Log(
-                $"Wallet owns {expectedBalance} NFT(s) from the PDT collection."
+            yield return null;
+        }
+
+        if (generation != scanGeneration)
+        {
+            yield break;
+        }
+
+        if (
+            !TryGetTaskResult(
+                balanceTask,
+                out BigInteger expectedBalance,
+                out string balanceError
+            )
+        )
+        {
+            ReportFailureForGeneration(
+                "NFT balance check failed: " + balanceError,
+                generation
             );
+            yield break;
+        }
 
-            if (expectedBalance == BigInteger.Zero)
+        Debug.Log(
+            $"Wallet owns {expectedBalance} NFT(s) from the PDT collection."
+        );
+
+        if (expectedBalance == BigInteger.Zero)
+        {
+            CompleteScan(generation);
+            yield break;
+        }
+
+        IReadOnlyList<TokenReference> discoveredTokens = null;
+        string indexedDiscoveryError = null;
+
+        yield return discoveryService.DiscoverOwnedTokens(
+            walletAddress,
+            chain,
+            contractAddress,
+            tokens => discoveredTokens = tokens,
+            error => indexedDiscoveryError = error
+        );
+
+        if (generation != scanGeneration)
+        {
+            yield break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(indexedDiscoveryError))
+        {
+            ReportFailureForGeneration(
+                "Indexed NFT discovery failed: " + indexedDiscoveryError,
+                generation
+            );
+            yield break;
+        }
+
+        if (discoveredTokens == null)
+        {
+            ReportFailureForGeneration(
+                "Indexed NFT discovery returned no result.",
+                generation
+            );
+            yield break;
+        }
+
+        List<TokenReference> approvedCandidates =
+            BuildApprovedCandidateList(discoveredTokens);
+
+        foreach (TokenReference candidate in approvedCandidates)
+        {
+            if (generation != scanGeneration)
             {
-                CompleteScan(generation);
-                return;
+                yield break;
             }
 
-            for (
-                int tokenID = firstTokenID;
-                tokenID <= maximumTokenIDToScan;
-                tokenID++
+            if (
+                !BigInteger.TryParse(
+                    candidate.AssetID,
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out BigInteger blockchainTokenID
+                ) ||
+                blockchainTokenID < BigInteger.Zero
             )
             {
-                if (
-                    generation != scanGeneration ||
-                    verifiedTokens.Count >= expectedBalance
-                )
-                {
-                    break;
-                }
+                Debug.LogWarning(
+                    $"Ignored invalid indexed token ID '{candidate.AssetID}'."
+                );
+                continue;
+            }
 
-                BigInteger blockchainTokenID = new BigInteger(tokenID);
-                string ownerAddress;
-
-                try
-                {
-                    ownerAddress = await AppKit.Evm.ReadContractAsync<string>(
+            if (
+                !TryStartTask(
+                    () => AppKit.Evm.ReadContractAsync<string>(
                         contractAddress,
                         OwnerOfABI,
                         "ownerOf",
                         new object[] { blockchainTokenID }
-                    );
-                }
-                catch
-                {
-                    // ownerOf reverts for token IDs that have not been minted.
-                    continue;
-                }
-
-                if (
-                    !string.Equals(
-                        ownerAddress,
-                        walletAddress,
-                        StringComparison.OrdinalIgnoreCase
-                    )
+                    ),
+                    out Task<string> ownerTask,
+                    out string ownerStartError
                 )
+            )
+            {
+                ReportFailureForGeneration(
+                    $"On-chain ownership verification failed for token " +
+                    $"{candidate.AssetID}: {ownerStartError}",
+                    generation
+                );
+                yield break;
+            }
+
+            while (!ownerTask.IsCompleted)
+            {
+                if (generation != scanGeneration)
                 {
-                    continue;
+                    yield break;
                 }
 
-                string metadataURI =
-                    await AppKit.Evm.ReadContractAsync<string>(
+                yield return null;
+            }
+
+            if (
+                !TryGetTaskResult(
+                    ownerTask,
+                    out string ownerAddress,
+                    out string ownerError
+                )
+            )
+            {
+                ReportFailureForGeneration(
+                    $"On-chain ownership verification failed for token " +
+                    $"{candidate.AssetID}: {ownerError}",
+                    generation
+                );
+                yield break;
+            }
+
+            if (
+                !string.Equals(
+                    ownerAddress,
+                    walletAddress,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                Debug.LogWarning(
+                    $"Ignored stale indexed token {candidate.AssetID}; " +
+                    "ownerOf does not match the connected wallet."
+                );
+                continue;
+            }
+
+            if (
+                !TryStartTask(
+                    () => AppKit.Evm.ReadContractAsync<string>(
                         contractAddress,
                         TokenURIABI,
                         "tokenURI",
                         new object[] { blockchainTokenID }
-                    );
+                    ),
+                    out Task<string> metadataURITask,
+                    out string metadataURIStartError
+                )
+            )
+            {
+                ReportFailureForGeneration(
+                    $"Official tokenURI lookup failed for token " +
+                    $"{candidate.AssetID}: {metadataURIStartError}",
+                    generation
+                );
+                yield break;
+            }
 
+            while (!metadataURITask.IsCompleted)
+            {
                 if (generation != scanGeneration)
                 {
-                    return;
+                    yield break;
                 }
 
-                VerifiedNFT verifiedNFT = new VerifiedNFT(
-                    blockchainTokenID,
-                    metadataURI
-                );
-
-                verifiedTokens.Add(verifiedNFT);
-                TokenVerified?.Invoke(verifiedNFT);
-
-                Debug.Log(
-                    $"Verified owned NFT token {verifiedNFT.tokenID}: " +
-                    verifiedNFT.metadataURI
-                );
+                yield return null;
             }
 
-            if (verifiedTokens.Count < expectedBalance)
+            if (
+                !TryGetTaskResult(
+                    metadataURITask,
+                    out string metadataURI,
+                    out string metadataURIError
+                )
+            )
             {
-                ReportFailure(
-                    $"The wallet balance is {expectedBalance}, but only " +
-                    $"{verifiedTokens.Count} owned token(s) were found through " +
-                    $"token ID {maximumTokenIDToScan}. Increase the scan limit."
+                ReportFailureForGeneration(
+                    $"Official tokenURI lookup failed for token " +
+                    $"{candidate.AssetID}: {metadataURIError}",
+                    generation
                 );
-                return;
+                yield break;
             }
 
-            CompleteScan(generation);
+            if (generation != scanGeneration)
+            {
+                yield break;
+            }
+
+            VerifiedNFT verifiedNFT = new VerifiedNFT(
+                candidate,
+                metadataURI
+            );
+
+            verifiedTokens.Add(verifiedNFT);
+            TokenVerified?.Invoke(verifiedNFT);
+
+            Debug.Log(
+                $"Verified indexed PDT NFT token {verifiedNFT.tokenID}: " +
+                verifiedNFT.metadataURI
+            );
         }
-        catch (Exception exception)
+
+        if (new BigInteger(verifiedTokens.Count) != expectedBalance)
         {
-            if (generation == scanGeneration)
-            {
-                ReportFailure(
-                    $"NFT ownership scan failed: {exception.Message}"
-                );
-            }
+            ReportFailureForGeneration(
+                $"The official contract reports {expectedBalance} owned " +
+                $"token(s), but indexed discovery produced " +
+                $"{verifiedTokens.Count} verified token(s). The indexer may " +
+                "still be synchronizing.",
+                generation
+            );
+            yield break;
         }
-        finally
+
+        CompleteScan(generation);
+    }
+
+    private List<TokenReference> BuildApprovedCandidateList(
+        IReadOnlyList<TokenReference> discoveredTokens
+    )
+    {
+        string approvedChain = chain.Trim().ToLowerInvariant();
+        string approvedCollection = contractAddress.Trim().ToLowerInvariant();
+        List<TokenReference> approvedCandidates =
+            new List<TokenReference>();
+        HashSet<TokenReference> uniqueCandidates =
+            new HashSet<TokenReference>();
+
+        foreach (TokenReference discoveredToken in discoveredTokens)
         {
-            if (generation == scanGeneration)
+            if (discoveredToken == null)
             {
-                IsScanning = false;
+                continue;
+            }
+
+            if (
+                !string.Equals(
+                    discoveredToken.Chain,
+                    approvedChain,
+                    StringComparison.OrdinalIgnoreCase
+                ) ||
+                !string.Equals(
+                    discoveredToken.Collection,
+                    approvedCollection,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                Debug.LogWarning(
+                    "Ignored an indexed token outside the approved PDT " +
+                    "chain or collection."
+                );
+                continue;
+            }
+
+            if (
+                !BigInteger.TryParse(
+                    discoveredToken.AssetID,
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out BigInteger tokenID
+                ) ||
+                tokenID < BigInteger.Zero
+            )
+            {
+                Debug.LogWarning(
+                    $"Ignored invalid indexed token ID " +
+                    $"'{discoveredToken.AssetID}'."
+                );
+                continue;
+            }
+
+            TokenReference normalizedReference = new TokenReference(
+                approvedChain,
+                approvedCollection,
+                tokenID.ToString(CultureInfo.InvariantCulture)
+            );
+
+            if (uniqueCandidates.Add(normalizedReference))
+            {
+                approvedCandidates.Add(normalizedReference);
             }
         }
+
+        return approvedCandidates;
+    }
+
+    private bool TryResolveTokenDiscoveryService(out string errorMessage)
+    {
+        tokenDiscoveryService =
+            tokenDiscoveryServiceSource as ITokenDiscoveryService;
+
+        if (tokenDiscoveryService != null)
+        {
+            errorMessage = null;
+            return true;
+        }
+
+        errorMessage =
+            "ERC721OwnershipReader requires a component that implements " +
+            "ITokenDiscoveryService.";
+        return false;
+    }
+
+    private void StopOwnershipScan()
+    {
+        if (ownershipScanCoroutine != null)
+        {
+            StopCoroutine(ownershipScanCoroutine);
+            ownershipScanCoroutine = null;
+        }
+
+        IsScanning = false;
     }
 
     private void CompleteScan(int generation)
@@ -284,6 +565,7 @@ public class ERC721OwnershipReader : MonoBehaviour
             return;
         }
 
+        ownershipScanCoroutine = null;
         IsScanning = false;
         OwnershipScanCompleted?.Invoke(verifiedTokens);
 
@@ -293,9 +575,22 @@ public class ERC721OwnershipReader : MonoBehaviour
         );
     }
 
+    private void ReportFailureForGeneration(
+        string message,
+        int generation
+    )
+    {
+        if (generation == scanGeneration)
+        {
+            ReportFailure(message);
+        }
+    }
+
     private void ReportFailure(string message)
     {
+        ownershipScanCoroutine = null;
         IsScanning = false;
+        ClearVerifiedTokens();
         OwnershipScanFailed?.Invoke(message);
         Debug.LogError(message);
     }
@@ -309,6 +604,53 @@ public class ERC721OwnershipReader : MonoBehaviour
 
         verifiedTokens.Clear();
         OwnershipCleared?.Invoke();
+    }
+
+    private static bool TryGetTaskResult<T>(
+        Task<T> task,
+        out T result,
+        out string errorMessage
+    )
+    {
+        if (task.IsCanceled)
+        {
+            result = default;
+            errorMessage = "The blockchain request was cancelled.";
+            return false;
+        }
+
+        if (task.IsFaulted)
+        {
+            result = default;
+            errorMessage = task.Exception
+                ?.GetBaseException()
+                .Message ?? "The blockchain request failed.";
+            return false;
+        }
+
+        result = task.Result;
+        errorMessage = null;
+        return true;
+    }
+
+    private static bool TryStartTask<T>(
+        Func<Task<T>> taskFactory,
+        out Task<T> task,
+        out string errorMessage
+    )
+    {
+        try
+        {
+            task = taskFactory();
+            errorMessage = null;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            task = null;
+            errorMessage = exception.Message;
+            return false;
+        }
     }
 
     private static bool IsValidEVMAddress(string address)

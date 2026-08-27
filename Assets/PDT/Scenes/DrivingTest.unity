@@ -644,7 +644,7 @@ MonoBehaviour:
   applicationDescription: Connect a wallet to unlock verified digital twin vehicles.
   applicationURL: https://github.com/jerom-26/PDT-Anniversary-Car
   applicationIconURL: https://raw.githubusercontent.com/reown-com/reown-dotnet/develop/media/appkit-icon.png
-  resumeSessionOnStart: 1
+  resumeSessionOnStart: 0
   openModalWhenNoSession: 1
 --- !u!114 &1972607778
 MonoBehaviour:
@@ -660,9 +660,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ERC721OwnershipReader
   walletConnector: {fileID: 1972607775}
   scanWhenWalletConnects: 1
+  chain: eip155:80002
   contractAddress: 0x021Ae9C7E520B1EdFdE488A7Df3EEd9BfC5786F3
-  firstTokenID: 0
-  maximumTokenIDToScan: 1000
+  tokenDiscoveryServiceSource: {fileID: 1976987152}
 --- !u!1 &1976987145
 GameObject:
   m_ObjectHideFlags: 0
@@ -677,6 +677,7 @@ GameObject:
   - component: {fileID: 1976987149}
   - component: {fileID: 1976987150}
   - component: {fileID: 1976987151}
+  - component: {fileID: 1976987152}
   m_Layer: 0
   m_Name: VehicleSpawner
   m_TagString: Untagged
@@ -774,6 +775,20 @@ MonoBehaviour:
   ownedVehicleRegistry: {fileID: 1976987149}
   vehicleSpawner: {fileID: 1976987146}
   spawnFirstUnlockedVehicle: 1
+--- !u!114 &1976987152
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1976987145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 858abf233f294a41bd0eb6d730701932, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::AlchemyNftDiscoveryService
+  apiKeyEnvironmentVariable: PDT_ALCHEMY_API_KEY
+  pageSize: 100
 --- !u!1 &2132419771
 GameObject:
   m_ObjectHideFlags: 0

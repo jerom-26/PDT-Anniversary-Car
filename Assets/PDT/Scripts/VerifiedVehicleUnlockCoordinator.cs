@@ -7,7 +7,11 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
     [Header("Verified ownership")]
     [SerializeField] private ERC721OwnershipReader ownershipReader;
 
-    [Header("V2 vehicle flow")]
+    [Header("Temporary metadata vehicle selection")]
+    [Tooltip(
+        "Temporary: verified token metadata selects the vehicle until a " +
+        "future contract exposes vehicleTypeOf on-chain."
+    )]
     [SerializeField] private NFTMetadataReader metadataReader;
     [SerializeField] private OwnedVehicleRegistry ownedVehicleRegistry;
     [SerializeField] private VehicleSpawner vehicleSpawner;
