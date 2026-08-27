@@ -42,6 +42,12 @@
 # Visual Studio cache directory
 .vs/
 
+# Local API credentials and developer-only configuration
+.env
+.env.*
+!.env.example
+*.secrets.json
+
 # Gradle cache directory
 .gradle/
 
