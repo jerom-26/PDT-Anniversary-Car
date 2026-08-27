@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [CreateAssetMenu(
     fileName = "NewVehicleData",
@@ -7,12 +8,12 @@ using UnityEngine;
 
 public class VehicleData : ScriptableObject
 {
-    [SerializeField] private string assetID;
+    [FormerlySerializedAs("assetID")]
+    [SerializeField] private string entitlementKey;
     [SerializeField] private string displayName;
     [SerializeField] private GameObject vehiclePrefab;
 
-    public string AssetID => assetID;
+    public string EntitlementKey => entitlementKey;
     public string DisplayName => displayName;
     public GameObject VehiclePrefab => vehiclePrefab;
-
 }

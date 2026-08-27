@@ -13,8 +13,8 @@ public class OwnedVehicleRegistry : MonoBehaviour
     public event Action<VehicleData> VehicleUnlocked;
     public event Action RegistryCleared;
 
-    public bool TryRegisterVerifiedMetadata(
-        NFTMetadata metadata,
+    public bool TryRegisterResolvedEntitlement(
+        TokenEntitlement entitlement,
         out VehicleData vehicleData
     )
     {
@@ -26,18 +26,63 @@ public class OwnedVehicleRegistry : MonoBehaviour
             return false;
         }
 
-        if (!TryGetAssetID(metadata, out string assetID))
+        if (entitlement == null)
         {
+            Debug.LogError("Cannot register a null token entitlement.");
+            return false;
+        }
+
+        return TryRegisterEntitlementKey(
+            entitlement.EntitlementKey,
+            out vehicleData
+        );
+    }
+
+    public bool TryRegisterDevelopmentEntitlementKey(
+        string entitlementKey,
+        out VehicleData vehicleData
+    )
+    {
+        if (!Debug.isDebugBuild)
+        {
+            vehicleData = null;
             Debug.LogError(
-                "Verified NFT metadata does not contain an Asset ID or modelID."
+                "Development entitlement registration is disabled in " +
+                "non-development builds."
             );
             return false;
         }
 
-        if (!vehicleCatalog.TryGetByAssetID(assetID, out vehicleData))
+        if (vehicleCatalog == null)
+        {
+            vehicleData = null;
+            Debug.LogError(
+                "OwnedVehicleRegistry has no VehicleCatalog assigned."
+            );
+            return false;
+        }
+
+        return TryRegisterEntitlementKey(
+            entitlementKey,
+            out vehicleData
+        );
+    }
+
+    private bool TryRegisterEntitlementKey(
+        string entitlementKey,
+        out VehicleData vehicleData
+    )
+    {
+        if (
+            !vehicleCatalog.TryGetByEntitlementKey(
+                entitlementKey,
+                out vehicleData
+            )
+        )
         {
             Debug.LogWarning(
-                $"Owned NFT Asset ID '{assetID}' is not supported by this game."
+                $"Entitlement key '{entitlementKey}' is not supported by " +
+                "this game."
             );
             return false;
         }
@@ -51,7 +96,8 @@ public class OwnedVehicleRegistry : MonoBehaviour
         VehicleUnlocked?.Invoke(vehicleData);
 
         Debug.Log(
-            $"Unlocked vehicle: {vehicleData.DisplayName} ({vehicleData.AssetID})"
+            $"Unlocked vehicle: {vehicleData.DisplayName} " +
+            $"({vehicleData.EntitlementKey})"
         );
 
         return true;
@@ -66,45 +112,5 @@ public class OwnedVehicleRegistry : MonoBehaviour
 
         unlockedVehicles.Clear();
         RegistryCleared?.Invoke();
-    }
-
-    private static bool TryGetAssetID(NFTMetadata metadata, out string assetID)
-    {
-        assetID = null;
-
-        if (metadata == null || metadata.attributes == null)
-        {
-            return false;
-        }
-
-        foreach (NFTAttribute attribute in metadata.attributes)
-        {
-            if (attribute == null)
-            {
-                continue;
-            }
-
-            bool isAssetID = string.Equals(
-                attribute.trait_type?.Trim(),
-                "Asset ID",
-                StringComparison.OrdinalIgnoreCase
-            );
-            bool isLegacyModelID = string.Equals(
-                attribute.trait_type?.Trim(),
-                "modelID",
-                StringComparison.OrdinalIgnoreCase
-            );
-
-            if (
-                (isAssetID || isLegacyModelID) &&
-                !string.IsNullOrWhiteSpace(attribute.value)
-            )
-            {
-                assetID = attribute.value.Trim();
-                return true;
-            }
-        }
-
-        return false;
     }
 }

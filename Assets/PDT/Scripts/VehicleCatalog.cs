@@ -12,25 +12,32 @@ public class VehicleCatalog : ScriptableObject
 
     public IReadOnlyList<VehicleData> Vehicles => vehicles;
 
-    public bool TryGetByAssetID(string assetID, out VehicleData vehicleData)
+    public bool TryGetByEntitlementKey(
+        string entitlementKey,
+        out VehicleData vehicleData
+    )
     {
         vehicleData = null;
 
-        if (string.IsNullOrWhiteSpace(assetID) || vehicles == null)
+        if (
+            !EntitlementKeys.TryNormalize(
+                entitlementKey,
+                out string normalizedEntitlementKey
+            ) ||
+            vehicles == null
+        )
         {
             return false;
         }
-
-        string normalizedAssetID = assetID.Trim();
 
         foreach (VehicleData vehicle in vehicles)
         {
             if (
                 vehicle != null &&
                 string.Equals(
-                    vehicle.AssetID?.Trim(),
-                    normalizedAssetID,
-                    StringComparison.OrdinalIgnoreCase
+                    vehicle.EntitlementKey,
+                    normalizedEntitlementKey,
+                    StringComparison.Ordinal
                 )
             )
             {

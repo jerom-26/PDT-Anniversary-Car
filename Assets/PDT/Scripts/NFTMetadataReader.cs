@@ -33,11 +33,15 @@ public class NFTMetadataReader : MonoBehaviour
                 yield break;
             }
 
-            NFTMetadata metadata = JsonUtility.FromJson<NFTMetadata>(request.downloadHandler.text);
-
-            if (metadata == null || metadata.attributes == null)
+            if (
+                !TryParseMetadata(
+                    request.downloadHandler.text,
+                    out NFTMetadata metadata,
+                    out string parseError
+                )
+            )
             {
-                onError?.Invoke("Downloaded NFT metadata is invalid.");
+                onError?.Invoke(parseError);
                 yield break;
             }
 
@@ -79,5 +83,33 @@ public class NFTMetadataReader : MonoBehaviour
             value.StartsWith("baf", StringComparison.OrdinalIgnoreCase);
 
         return isCIDv0 || isCIDv1;
+    }
+
+    private static bool TryParseMetadata(
+        string metadataJSON,
+        out NFTMetadata metadata,
+        out string errorMessage
+    )
+    {
+        try
+        {
+            metadata = JsonUtility.FromJson<NFTMetadata>(metadataJSON);
+        }
+        catch (Exception exception)
+        {
+            metadata = null;
+            errorMessage =
+                "Downloaded NFT metadata is invalid: " + exception.Message;
+            return false;
+        }
+
+        if (metadata == null || metadata.attributes == null)
+        {
+            errorMessage = "Downloaded NFT metadata is invalid.";
+            return false;
+        }
+
+        errorMessage = null;
+        return true;
     }
 }

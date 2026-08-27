@@ -167,7 +167,7 @@ public sealed class AlchemyNftDiscoveryService :
                     if (
                         !TryNormalizeEvmTokenID(
                             ownedNft.tokenId,
-                            out string normalizedAssetID
+                            out string normalizedTokenID
                         )
                     )
                     {
@@ -181,7 +181,7 @@ public sealed class AlchemyNftDiscoveryService :
                     TokenReference tokenReference = new TokenReference(
                         normalizedChain,
                         normalizedCollection,
-                        normalizedAssetID
+                        normalizedTokenID
                     );
 
                     if (uniqueTokens.Add(tokenReference))

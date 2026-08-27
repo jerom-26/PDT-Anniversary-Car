@@ -678,6 +678,7 @@ GameObject:
   - component: {fileID: 1976987150}
   - component: {fileID: 1976987151}
   - component: {fileID: 1976987152}
+  - component: {fileID: 1976987153}
   m_Layer: 0
   m_Name: VehicleSpawner
   m_TagString: Untagged
@@ -753,9 +754,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DevelopmentMetadataBootstrap
   runOnStart: 0
-  developmentMetadataURI: ipfs://bafkreihjyr3xtxoc32t6roxu3ahhs47x3knschdf7bjrnsnke6a7du3otq
+  developmentEntitlementKey: PDT_VEHICLE_DREAM_MOBILE_80TH
   spawnUnlockedVehicle: 1
-  metadataReader: {fileID: 1976987148}
   ownedVehicleRegistry: {fileID: 1976987149}
   vehicleSpawner: {fileID: 1976987146}
 --- !u!114 &1976987151
@@ -771,7 +771,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VerifiedVehicleUnlockCoordinator
   ownershipReader: {fileID: 1972607778}
-  metadataReader: {fileID: 1976987148}
+  tokenEntitlementServiceSource: {fileID: 1976987153}
   ownedVehicleRegistry: {fileID: 1976987149}
   vehicleSpawner: {fileID: 1976987146}
   spawnFirstUnlockedVehicle: 1
@@ -789,6 +789,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AlchemyNftDiscoveryService
   apiKeyEnvironmentVariable: PDT_ALCHEMY_API_KEY
   pageSize: 100
+--- !u!114 &1976987153
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1976987145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94733fab2ec7470ab320faad2560379f, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::LegacyMetadataEntitlementService
+  metadataReader: {fileID: 1976987148}
 --- !u!1 &2132419771
 GameObject:
   m_ObjectHideFlags: 0

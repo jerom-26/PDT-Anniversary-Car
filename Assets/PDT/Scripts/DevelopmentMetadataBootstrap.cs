@@ -2,13 +2,13 @@ using UnityEngine;
 
 public class DevelopmentMetadataBootstrap : MonoBehaviour
 {
-    [Header("Development only - replace with the verified wallet flow")]
+    [Header("Development only - bypasses wallet verification")]
     [SerializeField] private bool runOnStart = true;
-    [SerializeField] private string developmentMetadataURI;
+    [SerializeField] private string developmentEntitlementKey =
+        EntitlementKeys.DreamMobile80th;
     [SerializeField] private bool spawnUnlockedVehicle = true;
 
-    [Header("V2 components")]
-    [SerializeField] private NFTMetadataReader metadataReader;
+    [Header("Components")]
     [SerializeField] private OwnedVehicleRegistry ownedVehicleRegistry;
     [SerializeField] private VehicleSpawner vehicleSpawner;
 
@@ -19,41 +19,31 @@ public class DevelopmentMetadataBootstrap : MonoBehaviour
             return;
         }
 
-        LoadDevelopmentMetadata();
+        UnlockDevelopmentEntitlement();
     }
 
-    public void LoadDevelopmentMetadata()
+    public void UnlockDevelopmentEntitlement()
     {
         if (
-            metadataReader == null ||
             ownedVehicleRegistry == null ||
             (spawnUnlockedVehicle && vehicleSpawner == null)
         )
         {
             Debug.LogError(
-                "DevelopmentMetadataBootstrap is missing a V2 component reference."
+                "DevelopmentMetadataBootstrap is missing a component " +
+                "reference."
             );
             return;
         }
 
         Debug.LogWarning(
-            "Development metadata bootstrap bypasses wallet and ownerOf verification."
+            "Development entitlement bootstrap bypasses wallet, ownerOf " +
+            "and entitlementKeyOf verification."
         );
 
-        StartCoroutine(
-            metadataReader.LoadMetadata(
-                developmentMetadataURI,
-                OnMetadataLoaded,
-                OnMetadataLoadFailed
-            )
-        );
-    }
-
-    private void OnMetadataLoaded(NFTMetadata metadata)
-    {
         if (
-            ownedVehicleRegistry.TryRegisterVerifiedMetadata(
-                metadata,
+            ownedVehicleRegistry.TryRegisterDevelopmentEntitlementKey(
+                developmentEntitlementKey,
                 out VehicleData vehicleData
             ) &&
             spawnUnlockedVehicle
@@ -61,10 +51,5 @@ public class DevelopmentMetadataBootstrap : MonoBehaviour
         {
             vehicleSpawner.TrySpawn(vehicleData);
         }
-    }
-
-    private void OnMetadataLoadFailed(string errorMessage)
-    {
-        Debug.LogError(errorMessage);
     }
 }

@@ -12,16 +12,11 @@ public sealed class VerifiedNFT
 {
     public TokenReference tokenReference;
     public string tokenID;
-    public string metadataURI;
 
-    public VerifiedNFT(
-        TokenReference tokenReference,
-        string metadataURI
-    )
+    public VerifiedNFT(TokenReference tokenReference)
     {
         this.tokenReference = tokenReference;
-        tokenID = tokenReference.AssetID;
-        this.metadataURI = metadataURI;
+        tokenID = tokenReference.TokenID;
     }
 }
 
@@ -31,9 +26,6 @@ public class ERC721OwnershipReader : MonoBehaviour
         "function balanceOf(address owner) view returns (uint256)";
     private const string OwnerOfABI =
         "function ownerOf(uint256 tokenId) view returns (address)";
-    private const string TokenURIABI =
-        "function tokenURI(uint256 tokenId) view returns (string)";
-
     [Header("Wallet")]
     [SerializeField] private ReownWalletConnector walletConnector;
     [SerializeField] private bool scanWhenWalletConnects = true;
@@ -303,7 +295,7 @@ public class ERC721OwnershipReader : MonoBehaviour
 
             if (
                 !BigInteger.TryParse(
-                    candidate.AssetID,
+                    candidate.TokenID,
                     NumberStyles.None,
                     CultureInfo.InvariantCulture,
                     out BigInteger blockchainTokenID
@@ -312,7 +304,7 @@ public class ERC721OwnershipReader : MonoBehaviour
             )
             {
                 Debug.LogWarning(
-                    $"Ignored invalid indexed token ID '{candidate.AssetID}'."
+                    $"Ignored invalid indexed token ID '{candidate.TokenID}'."
                 );
                 continue;
             }
@@ -332,7 +324,7 @@ public class ERC721OwnershipReader : MonoBehaviour
             {
                 ReportFailureForGeneration(
                     $"On-chain ownership verification failed for token " +
-                    $"{candidate.AssetID}: {ownerStartError}",
+                    $"{candidate.TokenID}: {ownerStartError}",
                     generation
                 );
                 yield break;
@@ -358,7 +350,7 @@ public class ERC721OwnershipReader : MonoBehaviour
             {
                 ReportFailureForGeneration(
                     $"On-chain ownership verification failed for token " +
-                    $"{candidate.AssetID}: {ownerError}",
+                    $"{candidate.TokenID}: {ownerError}",
                     generation
                 );
                 yield break;
@@ -373,75 +365,20 @@ public class ERC721OwnershipReader : MonoBehaviour
             )
             {
                 Debug.LogWarning(
-                    $"Ignored stale indexed token {candidate.AssetID}; " +
+                    $"Ignored stale indexed token {candidate.TokenID}; " +
                     "ownerOf does not match the connected wallet."
                 );
                 continue;
             }
 
-            if (
-                !TryStartTask(
-                    () => AppKit.Evm.ReadContractAsync<string>(
-                        contractAddress,
-                        TokenURIABI,
-                        "tokenURI",
-                        new object[] { blockchainTokenID }
-                    ),
-                    out Task<string> metadataURITask,
-                    out string metadataURIStartError
-                )
-            )
-            {
-                ReportFailureForGeneration(
-                    $"Official tokenURI lookup failed for token " +
-                    $"{candidate.AssetID}: {metadataURIStartError}",
-                    generation
-                );
-                yield break;
-            }
-
-            while (!metadataURITask.IsCompleted)
-            {
-                if (generation != scanGeneration)
-                {
-                    yield break;
-                }
-
-                yield return null;
-            }
-
-            if (
-                !TryGetTaskResult(
-                    metadataURITask,
-                    out string metadataURI,
-                    out string metadataURIError
-                )
-            )
-            {
-                ReportFailureForGeneration(
-                    $"Official tokenURI lookup failed for token " +
-                    $"{candidate.AssetID}: {metadataURIError}",
-                    generation
-                );
-                yield break;
-            }
-
-            if (generation != scanGeneration)
-            {
-                yield break;
-            }
-
-            VerifiedNFT verifiedNFT = new VerifiedNFT(
-                candidate,
-                metadataURI
-            );
+            VerifiedNFT verifiedNFT = new VerifiedNFT(candidate);
 
             verifiedTokens.Add(verifiedNFT);
             TokenVerified?.Invoke(verifiedNFT);
 
             Debug.Log(
-                $"Verified indexed PDT NFT token {verifiedNFT.tokenID}: " +
-                verifiedNFT.metadataURI
+                $"Verified indexed PDT NFT token {verifiedNFT.tokenID} " +
+                "through ownerOf."
             );
         }
 
@@ -500,7 +437,7 @@ public class ERC721OwnershipReader : MonoBehaviour
 
             if (
                 !BigInteger.TryParse(
-                    discoveredToken.AssetID,
+                    discoveredToken.TokenID,
                     NumberStyles.None,
                     CultureInfo.InvariantCulture,
                     out BigInteger tokenID
@@ -510,7 +447,7 @@ public class ERC721OwnershipReader : MonoBehaviour
             {
                 Debug.LogWarning(
                     $"Ignored invalid indexed token ID " +
-                    $"'{discoveredToken.AssetID}'."
+                    $"'{discoveredToken.TokenID}'."
                 );
                 continue;
             }

@@ -56,7 +56,7 @@ public class VehicleSpawner : MonoBehaviour
 
         Debug.Log(
             $"Spawned unlocked vehicle: {vehicleData.DisplayName} " +
-            $"({vehicleData.AssetID})"
+            $"({vehicleData.EntitlementKey})"
         );
 
         return true;
