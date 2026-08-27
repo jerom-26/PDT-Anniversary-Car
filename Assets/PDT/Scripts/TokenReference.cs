@@ -5,9 +5,9 @@ public sealed class TokenReference : IEquatable<TokenReference>
 {
     public string Chain { get; }
     public string Collection { get; }
-    public string AssetID { get; }
+    public string TokenID { get; }
 
-    public TokenReference(string chain, string collection, string assetID)
+    public TokenReference(string chain, string collection, string tokenID)
     {
         if (string.IsNullOrWhiteSpace(chain))
         {
@@ -22,17 +22,17 @@ public sealed class TokenReference : IEquatable<TokenReference>
             );
         }
 
-        if (string.IsNullOrWhiteSpace(assetID))
+        if (string.IsNullOrWhiteSpace(tokenID))
         {
             throw new ArgumentException(
-                "A token asset ID is required.",
-                nameof(assetID)
+                "A token ID is required.",
+                nameof(tokenID)
             );
         }
 
         Chain = chain.Trim();
         Collection = collection.Trim();
-        AssetID = assetID.Trim();
+        TokenID = tokenID.Trim();
     }
 
     public bool Equals(TokenReference other)
@@ -45,7 +45,7 @@ public sealed class TokenReference : IEquatable<TokenReference>
                 other.Collection,
                 StringComparison.Ordinal
             ) &&
-            string.Equals(AssetID, other.AssetID, StringComparison.Ordinal);
+            string.Equals(TokenID, other.TokenID, StringComparison.Ordinal);
     }
 
     public override bool Equals(object obj)
@@ -60,13 +60,13 @@ public sealed class TokenReference : IEquatable<TokenReference>
             int hash = 17;
             hash = hash * 31 + StringComparer.Ordinal.GetHashCode(Chain);
             hash = hash * 31 + StringComparer.Ordinal.GetHashCode(Collection);
-            hash = hash * 31 + StringComparer.Ordinal.GetHashCode(AssetID);
+            hash = hash * 31 + StringComparer.Ordinal.GetHashCode(TokenID);
             return hash;
         }
     }
 
     public override string ToString()
     {
-        return $"{Chain}/{Collection}/{AssetID}";
+        return $"{Chain}/{Collection}/{TokenID}";
     }
 }
