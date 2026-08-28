@@ -20,10 +20,14 @@ public class ReownWalletConnector : MonoBehaviour
 
     public bool IsInitialized { get; private set; }
     public bool IsConnected => !string.IsNullOrWhiteSpace(ConnectedAddress);
+    public bool IsDisconnecting { get; private set; }
     public string ConnectedAddress { get; private set; }
 
+    public event Action WalletInitialized;
     public event Action<string> WalletConnected;
     public event Action WalletDisconnected;
+    public event Action WalletDisconnectCompleted;
+    public event Action<string> WalletError;
 
     private bool eventsSubscribed;
 
@@ -65,11 +69,12 @@ public class ReownWalletConnector : MonoBehaviour
             }
 
             Debug.Log("Reown AppKit initialized for Polygon Amoy.");
+            WalletInitialized?.Invoke();
         }
         catch (Exception exception)
         {
             IsInitialized = false;
-            Debug.LogError(
+            ReportWalletError(
                 $"Reown AppKit initialization failed: {exception.Message}"
             );
         }
@@ -84,7 +89,7 @@ public class ReownWalletConnector : MonoBehaviour
     {
         if (!AppKit.IsInitialized)
         {
-            Debug.LogWarning("Reown AppKit is not initialized yet.");
+            ReportWalletError("Reown AppKit is not initialized yet.");
             return;
         }
 
@@ -95,11 +100,45 @@ public class ReownWalletConnector : MonoBehaviour
     {
         if (!AppKit.IsInitialized || !AppKit.IsAccountConnected)
         {
-            Debug.LogWarning("Connect a wallet before opening the account view.");
+            ReportWalletError(
+                "Connect a wallet before opening the account view."
+            );
             return;
         }
 
         AppKit.OpenModal(ViewType.Account);
+    }
+
+    public async void DisconnectWallet()
+    {
+        if (IsDisconnecting)
+        {
+            return;
+        }
+
+        if (!AppKit.IsInitialized || !AppKit.IsAccountConnected)
+        {
+            ReportWalletError("There is no connected wallet to disconnect.");
+            return;
+        }
+
+        IsDisconnecting = true;
+
+        try
+        {
+            await AppKit.DisconnectAsync();
+        }
+        catch (Exception exception)
+        {
+            ReportWalletError(
+                $"Wallet disconnect failed: {exception.Message}"
+            );
+        }
+        finally
+        {
+            IsDisconnecting = false;
+            WalletDisconnectCompleted?.Invoke();
+        }
     }
 
     private AppKitConfig CreateConfig()
@@ -219,5 +258,11 @@ public class ReownWalletConnector : MonoBehaviour
         ConnectedAddress = address;
         WalletConnected?.Invoke(ConnectedAddress);
         Debug.Log($"Wallet connected: {ConnectedAddress}");
+    }
+
+    private void ReportWalletError(string message)
+    {
+        WalletError?.Invoke(message);
+        Debug.LogError(message);
     }
 }
