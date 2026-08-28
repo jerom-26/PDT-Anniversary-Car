@@ -50,6 +50,7 @@ public class ERC721OwnershipReader : MonoBehaviour
     public bool IsScanning { get; private set; }
 
     public event Action<VerifiedNFT> TokenVerified;
+    public event Action OwnershipScanStarted;
     public event Action<IReadOnlyList<VerifiedNFT>> OwnershipScanCompleted;
     public event Action<string> OwnershipScanFailed;
     public event Action OwnershipCleared;
@@ -127,6 +128,7 @@ public class ERC721OwnershipReader : MonoBehaviour
 
         StopOwnershipScan();
         int generation = ++scanGeneration;
+        OwnershipScanStarted?.Invoke();
         ownershipScanCoroutine = StartCoroutine(
             ScanOwnership(
                 walletConnector.ConnectedAddress,

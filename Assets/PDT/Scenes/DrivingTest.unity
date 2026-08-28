@@ -645,7 +645,7 @@ MonoBehaviour:
   applicationURL: https://github.com/jerom-26/PDT-Anniversary-Car
   applicationIconURL: https://raw.githubusercontent.com/reown-com/reown-dotnet/develop/media/appkit-icon.png
   resumeSessionOnStart: 0
-  openModalWhenNoSession: 1
+  openModalWhenNoSession: 0
 --- !u!114 &1972607778
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -679,6 +679,7 @@ GameObject:
   - component: {fileID: 1976987151}
   - component: {fileID: 1976987152}
   - component: {fileID: 1976987153}
+  - component: {fileID: 1976987154}
   m_Layer: 0
   m_Name: VehicleSpawner
   m_TagString: Untagged
@@ -802,6 +803,22 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::LegacyMetadataEntitlementService
   metadataReader: {fileID: 1976987148}
+--- !u!114 &1976987154
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1976987145}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b6f4584c9db84a168172045aad863fb0, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::WalletStatusUI
+  walletConnector: {fileID: 1972607775}
+  ownershipReader: {fileID: 1972607778}
+  unlockCoordinator: {fileID: 1976987151}
+  ownedVehicleRegistry: {fileID: 1976987149}
 --- !u!1 &2132419771
 GameObject:
   m_ObjectHideFlags: 0

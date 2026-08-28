@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -20,6 +21,10 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
     private ITokenEntitlementService tokenEntitlementService;
     private Coroutine entitlementResolutionCoroutine;
 
+    public event Action EntitlementResolutionStarted;
+    public event Action<int> EntitlementResolutionCompleted;
+    public event Action<string> EntitlementResolutionFailed;
+
     private void Awake()
     {
         TryResolveEntitlementService(out _);
@@ -41,7 +46,7 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
     {
         if (!HasRequiredReferences())
         {
-            Debug.LogError(
+            ReportEntitlementFailure(
                 "VerifiedVehicleUnlockCoordinator is missing a component " +
                 "reference."
             );
@@ -50,7 +55,7 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
 
         if (!TryResolveEntitlementService(out string entitlementError))
         {
-            Debug.LogError(entitlementError);
+            ReportEntitlementFailure(entitlementError);
         }
     }
 
@@ -74,7 +79,7 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
     {
         if (!HasRequiredReferences())
         {
-            Debug.LogError(
+            ReportEntitlementFailure(
                 "Cannot unlock vehicles because the verified wallet flow " +
                 "is missing a component reference."
             );
@@ -83,7 +88,7 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
 
         if (!TryResolveEntitlementService(out string entitlementError))
         {
-            Debug.LogError(entitlementError);
+            ReportEntitlementFailure(entitlementError);
             return;
         }
 
@@ -100,6 +105,7 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
         List<VerifiedNFT> tokenSnapshot =
             new List<VerifiedNFT>(verifiedTokens);
 
+        EntitlementResolutionStarted?.Invoke();
         entitlementResolutionCoroutine = StartCoroutine(
             ResolveVerifiedEntitlements(tokenSnapshot)
         );
@@ -173,24 +179,36 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
 
         if (ownedVehicleRegistry.UnlockedVehicles.Count == 0)
         {
-            Debug.LogWarning(
+            ReportEntitlementFailure(
                 "The wallet owns verified NFTs, but none provide a " +
                 "supported vehicle entitlement."
             );
             yield break;
         }
 
-        Debug.Log(
-            $"Verified entitlements unlocked " +
-            $"{ownedVehicleRegistry.UnlockedVehicles.Count} vehicle(s)."
-        );
-
         if (spawnFirstUnlockedVehicle)
         {
-            vehicleSpawner.TrySpawn(
-                ownedVehicleRegistry.UnlockedVehicles[0]
-            );
+            if (
+                !vehicleSpawner.TrySpawn(
+                    ownedVehicleRegistry.UnlockedVehicles[0]
+                )
+            )
+            {
+                ReportEntitlementFailure(
+                    "The verified vehicle could not be spawned."
+                );
+                yield break;
+            }
         }
+
+        int unlockedVehicleCount =
+            ownedVehicleRegistry.UnlockedVehicles.Count;
+
+        Debug.Log(
+            $"Verified entitlements unlocked " +
+            $"{unlockedVehicleCount} vehicle(s)."
+        );
+        EntitlementResolutionCompleted?.Invoke(unlockedVehicleCount);
     }
 
     private bool TryResolveEntitlementService(out string errorMessage)
@@ -228,5 +246,11 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
             tokenEntitlementServiceSource != null &&
             ownedVehicleRegistry != null &&
             vehicleSpawner != null;
+    }
+
+    private void ReportEntitlementFailure(string message)
+    {
+        EntitlementResolutionFailed?.Invoke(message);
+        Debug.LogError(message);
     }
 }
