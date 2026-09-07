@@ -102,6 +102,7 @@ public sealed class AlchemyNftDiscoveryService :
 
             using (UnityWebRequest request = UnityWebRequest.Get(requestURL))
             {
+                request.timeout = 30;
                 request.SetRequestHeader(
                     "Authorization",
                     $"Bearer {apiKey.Trim()}"

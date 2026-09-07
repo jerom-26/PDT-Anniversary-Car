@@ -1,0 +1,16 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bc85cdef2a1484b9e85ef4d38927111, type: 3}
+  m_Name: PDTAmoyV2
+  m_EditorClassIdentifier: Assembly-CSharp::ApprovedPDTCollection
+  chain: eip155:80002
+  proxyAddress: 0xD3E16C6892d7Bda4A908294253b305faC4c70D97

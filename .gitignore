@@ -44,6 +44,13 @@
 
 # Local API credentials and developer-only configuration
 .env
+/Contracts/node_modules/
+/Contracts/artifacts/
+/Contracts/cache/
+/Contracts/coverage/
+/Validation/**/bin/
+/Validation/**/obj/
+/Contracts/.openzeppelin/unknown-*.json
 .env.*
 !.env.example
 *.secrets.json
@@ -55,6 +62,7 @@
 ExportedObj/
 .consulo/
 *.csproj
+!/Validation/**/*.csproj
 *.unityproj
 *.sln
 *.suo

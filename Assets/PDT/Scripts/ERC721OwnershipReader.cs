@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
-using System.Threading.Tasks;
 using Reown.AppKit.Unity;
 using UnityEngine;
 
@@ -12,611 +11,163 @@ public sealed class VerifiedNFT
 {
     public TokenReference tokenReference;
     public string tokenID;
-
-    public VerifiedNFT(TokenReference tokenReference)
-    {
-        this.tokenReference = tokenReference;
-        tokenID = tokenReference.TokenID;
-    }
+    public VerifiedNFT(TokenReference reference) { tokenReference = reference; tokenID = reference.TokenID; }
 }
 
 public class ERC721OwnershipReader : MonoBehaviour
 {
-    private const string BalanceOfABI =
-        "function balanceOf(address owner) view returns (uint256)";
-    private const string OwnerOfABI =
-        "function ownerOf(uint256 tokenId) view returns (address)";
-    [Header("Wallet")]
+    private const string BalanceABI = "function balanceOf(address owner) view returns (uint256)";
+    private const string OwnerABI = "function ownerOf(uint256 tokenId) view returns (address)";
     [SerializeField] private ReownWalletConnector walletConnector;
     [SerializeField] private bool scanWhenWalletConnects = true;
-
-    [Header("Approved PDT collection")]
-    [Tooltip("CAIP-2 chain identifier for Polygon Amoy.")]
+    [Header("V2 shared approved source")]
+    [SerializeField] private ApprovedPDTCollection approvedSource;
+    [Header("Legacy scene source")]
     [SerializeField] private string chain = "eip155:80002";
-    [SerializeField] private string contractAddress =
-        "0x021Ae9C7E520B1EdFdE488A7Df3EEd9BfC5786F3";
-
-    [Header("Indexed token discovery")]
-    [Tooltip("Must implement ITokenDiscoveryService.")]
+    [SerializeField] private string contractAddress = "0x021Ae9C7E520B1EdFdE488A7Df3EEd9BfC5786F3";
     [SerializeField] private MonoBehaviour tokenDiscoveryServiceSource;
 
-    private readonly List<VerifiedNFT> verifiedTokens =
-        new List<VerifiedNFT>();
-    private ITokenDiscoveryService tokenDiscoveryService;
-    private Coroutine ownershipScanCoroutine;
-    private int scanGeneration;
-
+    private readonly List<VerifiedNFT> verifiedTokens = new List<VerifiedNFT>();
+    private readonly HashSet<TokenReference> knownCandidates = new HashSet<TokenReference>();
+    private Coroutine scan;
+    private int generation;
+    private PDTReadContext context;
+    private string sourceChain, sourceCollection;
     public IReadOnlyList<VerifiedNFT> VerifiedTokens => verifiedTokens;
     public bool IsScanning { get; private set; }
-
+    public bool HasUnavailableResults { get; private set; }
+    public int ScanGeneration => generation;
+    public bool IsVerificationContextCurrent => context != null && context.IsCurrent &&
+        string.Equals(sourceChain, ApprovedChain, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(sourceCollection, ApprovedCollection, StringComparison.OrdinalIgnoreCase);
+    private string ApprovedChain => approvedSource != null ? approvedSource.Chain : chain?.Trim();
+    private string ApprovedCollection => approvedSource != null ? approvedSource.ProxyAddress : contractAddress?.Trim();
     public event Action<VerifiedNFT> TokenVerified;
     public event Action OwnershipScanStarted;
     public event Action<IReadOnlyList<VerifiedNFT>> OwnershipScanCompleted;
     public event Action<string> OwnershipScanFailed;
     public event Action OwnershipCleared;
 
-    private void Awake()
-    {
-        TryResolveTokenDiscoveryService(out _);
-    }
-
-    private void OnEnable()
-    {
-        if (walletConnector == null)
-        {
-            return;
-        }
-
-        walletConnector.WalletConnected += HandleWalletConnected;
-        walletConnector.WalletDisconnected += HandleWalletDisconnected;
-    }
-
-    private void Start()
-    {
-        if (!TryResolveTokenDiscoveryService(out string discoveryError))
-        {
-            Debug.LogError(discoveryError);
-            return;
-        }
-
-        if (
-            scanWhenWalletConnects &&
-            walletConnector != null &&
-            walletConnector.IsConnected
-        )
-        {
-            RefreshOwnership();
-        }
-    }
-
+    private void OnEnable() { if (walletConnector != null) walletConnector.WalletContextChanged += HandleContextChanged; }
+    private void Start() { if (scanWhenWalletConnects && walletConnector != null && walletConnector.IsConnected) RefreshOwnership(); }
     private void OnDisable()
     {
-        scanGeneration++;
-        StopOwnershipScan();
-        ClearVerifiedTokens();
-
-        if (walletConnector == null)
-        {
-            return;
-        }
-
-        walletConnector.WalletConnected -= HandleWalletConnected;
-        walletConnector.WalletDisconnected -= HandleWalletDisconnected;
+        if (walletConnector != null) walletConnector.WalletContextChanged -= HandleContextChanged;
+        Invalidate();
+    }
+    private void HandleContextChanged()
+    {
+        knownCandidates.Clear();
+        Invalidate();
+        if (scanWhenWalletConnects && walletConnector.IsConnected) RefreshOwnership();
     }
 
+    // New protected actions must request a refresh, never trust an old registry.
     public void RefreshOwnership()
     {
-        if (walletConnector == null)
-        {
-            ReportFailure(
-                "ERC721OwnershipReader has no wallet connector assigned."
-            );
-            return;
-        }
-
-        if (!walletConnector.IsConnected)
-        {
-            ReportFailure("Connect a wallet before scanning NFT ownership.");
-            return;
-        }
-
-        if (!TryResolveTokenDiscoveryService(out string discoveryError))
-        {
-            ReportFailure(discoveryError);
-            return;
-        }
-
-        StopOwnershipScan();
-        int generation = ++scanGeneration;
-        OwnershipScanStarted?.Invoke();
-        ownershipScanCoroutine = StartCoroutine(
-            ScanOwnership(
-                walletConnector.ConnectedAddress,
-                tokenDiscoveryService,
-                generation
-            )
-        );
-    }
-
-    private void HandleWalletConnected(string walletAddress)
-    {
-        if (!scanWhenWalletConnects)
-        {
-            return;
-        }
-
-        RefreshOwnership();
-    }
-
-    private void HandleWalletDisconnected()
-    {
-        scanGeneration++;
-        StopOwnershipScan();
-        ClearVerifiedTokens();
-    }
-
-    private IEnumerator ScanOwnership(
-        string walletAddress,
-        ITokenDiscoveryService discoveryService,
-        int generation
-    )
-    {
-        if (string.IsNullOrWhiteSpace(chain))
-        {
-            ReportFailureForGeneration(
-                "The approved PDT chain is not configured.",
-                generation
-            );
-            yield break;
-        }
-
-        if (!IsValidEVMAddress(contractAddress))
-        {
-            ReportFailureForGeneration(
-                "The configured NFT contract address is invalid.",
-                generation
-            );
-            yield break;
-        }
-
-        if (!IsValidEVMAddress(walletAddress))
-        {
-            ReportFailureForGeneration(
-                "Reown returned an invalid wallet address.",
-                generation
-            );
-            yield break;
-        }
-
+        Invalidate();
+        HasUnavailableResults = false;
+        if (walletConnector == null || !walletConnector.IsConnected) { Fail("Connect a wallet before verification."); return; }
+        sourceChain = ApprovedChain;
+        sourceCollection = ApprovedCollection;
+        if (string.IsNullOrWhiteSpace(sourceChain) || !PDTVerificationPolicy.IsAddress(sourceCollection))
+        { Fail("The approved PDT proxy has not been configured."); return; }
+        if (!(tokenDiscoveryServiceSource is ITokenDiscoveryService discovery))
+        { Fail("A token discovery service is required."); return; }
+        context = new PDTReadContext(walletConnector, sourceChain);
         IsScanning = true;
-        ClearVerifiedTokens();
-
-        if (
-            !TryStartTask(
-                () => AppKit.Evm.ReadContractAsync<BigInteger>(
-                    contractAddress,
-                    BalanceOfABI,
-                    "balanceOf",
-                    new object[] { walletAddress }
-                ),
-                out Task<BigInteger> balanceTask,
-                out string balanceStartError
-            )
-        )
-        {
-            ReportFailureForGeneration(
-                "NFT balance check failed: " + balanceStartError,
-                generation
-            );
-            yield break;
-        }
-
-        while (!balanceTask.IsCompleted)
-        {
-            if (generation != scanGeneration)
-            {
-                yield break;
-            }
-
-            yield return null;
-        }
-
-        if (generation != scanGeneration)
-        {
-            yield break;
-        }
-
-        if (
-            !TryGetTaskResult(
-                balanceTask,
-                out BigInteger expectedBalance,
-                out string balanceError
-            )
-        )
-        {
-            ReportFailureForGeneration(
-                "NFT balance check failed: " + balanceError,
-                generation
-            );
-            yield break;
-        }
-
-        Debug.Log(
-            $"Wallet owns {expectedBalance} NFT(s) from the PDT collection."
-        );
-
-        if (expectedBalance == BigInteger.Zero)
-        {
-            CompleteScan(generation);
-            yield break;
-        }
-
-        IReadOnlyList<TokenReference> discoveredTokens = null;
-        string indexedDiscoveryError = null;
-
-        yield return discoveryService.DiscoverOwnedTokens(
-            walletAddress,
-            chain,
-            contractAddress,
-            tokens => discoveredTokens = tokens,
-            error => indexedDiscoveryError = error
-        );
-
-        if (generation != scanGeneration)
-        {
-            yield break;
-        }
-
-        if (!string.IsNullOrWhiteSpace(indexedDiscoveryError))
-        {
-            ReportFailureForGeneration(
-                "Indexed NFT discovery failed: " + indexedDiscoveryError,
-                generation
-            );
-            yield break;
-        }
-
-        if (discoveredTokens == null)
-        {
-            ReportFailureForGeneration(
-                "Indexed NFT discovery returned no result.",
-                generation
-            );
-            yield break;
-        }
-
-        List<TokenReference> approvedCandidates =
-            BuildApprovedCandidateList(discoveredTokens);
-
-        foreach (TokenReference candidate in approvedCandidates)
-        {
-            if (generation != scanGeneration)
-            {
-                yield break;
-            }
-
-            if (
-                !BigInteger.TryParse(
-                    candidate.TokenID,
-                    NumberStyles.None,
-                    CultureInfo.InvariantCulture,
-                    out BigInteger blockchainTokenID
-                ) ||
-                blockchainTokenID < BigInteger.Zero
-            )
-            {
-                Debug.LogWarning(
-                    $"Ignored invalid indexed token ID '{candidate.TokenID}'."
-                );
-                continue;
-            }
-
-            if (
-                !TryStartTask(
-                    () => AppKit.Evm.ReadContractAsync<string>(
-                        contractAddress,
-                        OwnerOfABI,
-                        "ownerOf",
-                        new object[] { blockchainTokenID }
-                    ),
-                    out Task<string> ownerTask,
-                    out string ownerStartError
-                )
-            )
-            {
-                ReportFailureForGeneration(
-                    $"On-chain ownership verification failed for token " +
-                    $"{candidate.TokenID}: {ownerStartError}",
-                    generation
-                );
-                yield break;
-            }
-
-            while (!ownerTask.IsCompleted)
-            {
-                if (generation != scanGeneration)
-                {
-                    yield break;
-                }
-
-                yield return null;
-            }
-
-            if (
-                !TryGetTaskResult(
-                    ownerTask,
-                    out string ownerAddress,
-                    out string ownerError
-                )
-            )
-            {
-                ReportFailureForGeneration(
-                    $"On-chain ownership verification failed for token " +
-                    $"{candidate.TokenID}: {ownerError}",
-                    generation
-                );
-                yield break;
-            }
-
-            if (
-                !string.Equals(
-                    ownerAddress,
-                    walletAddress,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                Debug.LogWarning(
-                    $"Ignored stale indexed token {candidate.TokenID}; " +
-                    "ownerOf does not match the connected wallet."
-                );
-                continue;
-            }
-
-            VerifiedNFT verifiedNFT = new VerifiedNFT(candidate);
-
-            verifiedTokens.Add(verifiedNFT);
-            TokenVerified?.Invoke(verifiedNFT);
-
-            Debug.Log(
-                $"Verified indexed PDT NFT token {verifiedNFT.tokenID} " +
-                "through ownerOf."
-            );
-        }
-
-        if (new BigInteger(verifiedTokens.Count) != expectedBalance)
-        {
-            ReportFailureForGeneration(
-                $"The official contract reports {expectedBalance} owned " +
-                $"token(s), but indexed discovery produced " +
-                $"{verifiedTokens.Count} verified token(s). The indexer may " +
-                "still be synchronizing.",
-                generation
-            );
-            yield break;
-        }
-
-        CompleteScan(generation);
+        OwnershipScanStarted?.Invoke();
+        scan = StartCoroutine(Scan(discovery, generation));
     }
 
-    private List<TokenReference> BuildApprovedCandidateList(
-        IReadOnlyList<TokenReference> discoveredTokens
-    )
+    private IEnumerator Scan(ITokenDiscoveryService discovery, int currentGeneration)
     {
-        string approvedChain = chain.Trim().ToLowerInvariant();
-        string approvedCollection = contractAddress.Trim().ToLowerInvariant();
-        List<TokenReference> approvedCandidates =
-            new List<TokenReference>();
-        HashSet<TokenReference> uniqueCandidates =
-            new HashSet<TokenReference>();
-
-        foreach (TokenReference discoveredToken in discoveredTokens)
+        // Reown finishes dispatching account/network events before the first read.
+        yield return null;
+        if (!Current(currentGeneration)) { Fail("Verification unavailable: select the approved PDT network."); yield break; }
+        IReadOnlyList<TokenReference> discovered = null;
+        string discoveryError = null;
+        yield return discovery.DiscoverOwnedTokens(context.Address, sourceChain, sourceCollection,
+            tokens => discovered = tokens, error => discoveryError = error);
+        if (!Current(currentGeneration)) yield break;
+        HasUnavailableResults = discoveryError != null || discovered == null;
+        if (HasUnavailableResults) Debug.LogWarning("NFT discovery unavailable; only known identities can be reverified.");
+        List<TokenReference> candidates = BuildCandidates(discovered);
+        foreach (TokenReference token in candidates)
         {
-            if (discoveredToken == null)
-            {
-                continue;
-            }
-
-            if (
-                !string.Equals(
-                    discoveredToken.Chain,
-                    approvedChain,
-                    StringComparison.OrdinalIgnoreCase
-                ) ||
-                !string.Equals(
-                    discoveredToken.Collection,
-                    approvedCollection,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                Debug.LogWarning(
-                    "Ignored an indexed token outside the approved PDT " +
-                    "chain or collection."
-                );
-                continue;
-            }
-
-            if (
-                !BigInteger.TryParse(
-                    discoveredToken.TokenID,
-                    NumberStyles.None,
-                    CultureInfo.InvariantCulture,
-                    out BigInteger tokenID
-                ) ||
-                tokenID < BigInteger.Zero
-            )
-            {
-                Debug.LogWarning(
-                    $"Ignored invalid indexed token ID " +
-                    $"'{discoveredToken.TokenID}'."
-                );
-                continue;
-            }
-
-            TokenReference normalizedReference = new TokenReference(
-                approvedChain,
-                approvedCollection,
-                tokenID.ToString(CultureInfo.InvariantCulture)
-            );
-
-            if (uniqueCandidates.Add(normalizedReference))
-            {
-                approvedCandidates.Add(normalizedReference);
-            }
+            if (!Current(currentGeneration)) yield break;
+            PDTVerificationPolicy.TryTokenId(token.TokenID, out BigInteger id);
+            var owner = new PDTReadResult<string>();
+            yield return PDTChainRead.Run(() => AppKit.Evm.ReadContractAsync<string>(
+                sourceCollection, OwnerABI, "ownerOf", new object[] { id }), context, owner, id);
+            if (!Current(currentGeneration)) yield break;
+            if (owner.Status == PDTReadStatus.Nonexistent)
+            { knownCandidates.Remove(token); Debug.Log($"Rejected nonexistent PDT token {id}."); continue; }
+            if (owner.Status != PDTReadStatus.Success || !PDTVerificationPolicy.IsAddress(owner.Value))
+            { HasUnavailableResults = true; Debug.LogWarning($"Ownership verification unavailable for token {id}."); continue; }
+            if (!string.Equals(owner.Value, context.Address, StringComparison.OrdinalIgnoreCase))
+            { knownCandidates.Remove(token); Debug.Log($"Rejected PDT token {id}: wallet is not its current owner."); continue; }
+            var verified = new VerifiedNFT(token);
+            verifiedTokens.Add(verified);
+            TokenVerified?.Invoke(verified);
+            Debug.Log($"Verified indexed PDT token {id} through ownerOf.");
         }
-
-        return approvedCandidates;
+        // Advisory only; never discard individually proven tokens.
+        var balance = new PDTReadResult<BigInteger>();
+        yield return PDTChainRead.Run(() => AppKit.Evm.ReadContractAsync<BigInteger>(
+            sourceCollection, BalanceABI, "balanceOf", new object[] { context.Address }), context, balance);
+        if (!Current(currentGeneration)) yield break;
+        if (balance.Status != PDTReadStatus.Success || balance.Value != verifiedTokens.Count)
+        {
+            HasUnavailableResults = true;
+            Debug.LogWarning("Discovery completeness is uncertain; individually verified tokens remain usable.");
+        }
+        IsScanning = false;
+        scan = null;
+        OwnershipScanCompleted?.Invoke(new List<VerifiedNFT>(verifiedTokens));
+        Debug.Log($"NFT scan completed with {verifiedTokens.Count} verified token(s).");
     }
 
-    private bool TryResolveTokenDiscoveryService(out string errorMessage)
+    private List<TokenReference> BuildCandidates(IReadOnlyList<TokenReference> discovered)
     {
-        tokenDiscoveryService =
-            tokenDiscoveryServiceSource as ITokenDiscoveryService;
+        // Cache identity only; ownership and entitlement are always read again.
+        if (discovered != null)
+            foreach (TokenReference token in discovered)
+                if (token != null && string.Equals(token.Chain, sourceChain, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(token.Collection, sourceCollection, StringComparison.OrdinalIgnoreCase) &&
+                    PDTVerificationPolicy.TryTokenId(token.TokenID, out BigInteger id))
+                    knownCandidates.Add(new TokenReference(sourceChain.ToLowerInvariant(), sourceCollection.ToLowerInvariant(), id.ToString(CultureInfo.InvariantCulture)));
+        var result = new List<TokenReference>();
+        foreach (TokenReference token in knownCandidates)
+            if (string.Equals(token.Chain, sourceChain, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(token.Collection, sourceCollection, StringComparison.OrdinalIgnoreCase)) result.Add(token);
+        return result;
+    }
 
-        if (tokenDiscoveryService != null)
-        {
-            errorMessage = null;
-            return true;
-        }
-
-        errorMessage =
-            "ERC721OwnershipReader requires a component that implements " +
-            "ITokenDiscoveryService.";
+    private bool Current(int expected)
+    {
+        if (expected != generation) return false;
+        if (IsVerificationContextCurrent) return true;
+        Invalidate();
+        Fail("Verification unavailable: wallet or approved network context changed.");
         return false;
     }
-
-    private void StopOwnershipScan()
+    private void Invalidate()
     {
-        if (ownershipScanCoroutine != null)
-        {
-            StopCoroutine(ownershipScanCoroutine);
-            ownershipScanCoroutine = null;
-        }
-
+        generation++;
+        if (scan != null) StopCoroutine(scan);
+        scan = null;
         IsScanning = false;
-    }
-
-    private void CompleteScan(int generation)
-    {
-        if (generation != scanGeneration)
-        {
-            return;
-        }
-
-        ownershipScanCoroutine = null;
-        IsScanning = false;
-        OwnershipScanCompleted?.Invoke(verifiedTokens);
-
-        Debug.Log(
-            $"NFT ownership scan completed with {verifiedTokens.Count} " +
-            "verified token(s)."
-        );
-    }
-
-    private void ReportFailureForGeneration(
-        string message,
-        int generation
-    )
-    {
-        if (generation == scanGeneration)
-        {
-            ReportFailure(message);
-        }
-    }
-
-    private void ReportFailure(string message)
-    {
-        ownershipScanCoroutine = null;
-        IsScanning = false;
-        ClearVerifiedTokens();
-        OwnershipScanFailed?.Invoke(message);
-        Debug.LogError(message);
-    }
-
-    private void ClearVerifiedTokens()
-    {
-        if (verifiedTokens.Count == 0)
-        {
-            return;
-        }
-
+        context = null;
         verifiedTokens.Clear();
+        // Cancel downstream work even if the old ownership list was empty.
         OwnershipCleared?.Invoke();
     }
-
-    private static bool TryGetTaskResult<T>(
-        Task<T> task,
-        out T result,
-        out string errorMessage
-    )
+    private void Fail(string message)
     {
-        if (task.IsCanceled)
-        {
-            result = default;
-            errorMessage = "The blockchain request was cancelled.";
-            return false;
-        }
-
-        if (task.IsFaulted)
-        {
-            result = default;
-            errorMessage = task.Exception
-                ?.GetBaseException()
-                .Message ?? "The blockchain request failed.";
-            return false;
-        }
-
-        result = task.Result;
-        errorMessage = null;
-        return true;
-    }
-
-    private static bool TryStartTask<T>(
-        Func<Task<T>> taskFactory,
-        out Task<T> task,
-        out string errorMessage
-    )
-    {
-        try
-        {
-            task = taskFactory();
-            errorMessage = null;
-            return true;
-        }
-        catch (Exception exception)
-        {
-            task = null;
-            errorMessage = exception.Message;
-            return false;
-        }
-    }
-
-    private static bool IsValidEVMAddress(string address)
-    {
-        if (
-            string.IsNullOrWhiteSpace(address) ||
-            address.Length != 42 ||
-            !address.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-        )
-        {
-            return false;
-        }
-
-        for (int index = 2; index < address.Length; index++)
-        {
-            char character = address[index];
-            bool isHexadecimal =
-                (character >= '0' && character <= '9') ||
-                (character >= 'a' && character <= 'f') ||
-                (character >= 'A' && character <= 'F');
-
-            if (!isHexadecimal)
-            {
-                return false;
-            }
-        }
-
-        return true;
+        IsScanning = false;
+        HasUnavailableResults = true;
+        OwnershipScanFailed?.Invoke(message);
+        Debug.LogWarning(message);
     }
 }

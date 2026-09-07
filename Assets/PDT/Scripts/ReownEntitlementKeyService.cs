@@ -1,225 +1,64 @@
 using System;
 using System.Collections;
-using System.Globalization;
 using System.Numerics;
 using System.Text;
-using System.Threading.Tasks;
 using Reown.AppKit.Unity;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public sealed class ReownEntitlementKeyService :
-    MonoBehaviour,
-    ITokenEntitlementService
+public sealed class ReownEntitlementKeyService : MonoBehaviour, ITokenEntitlementService
 {
-    private const string EntitlementKeyOfABI =
-        "function entitlementKeyOf(uint256 tokenId) view returns (bytes32)";
+    private const string KeyABI = "function entitlementKeyOf(uint256 tokenId) view returns (bytes32)";
+    private const string OwnerABI = "function ownerOf(uint256 tokenId) view returns (address)";
+    [SerializeField] private ApprovedPDTCollection approvedSource;
+    [SerializeField] private ReownWalletConnector walletConnector;
+    public bool LastVerificationUnavailable { get; private set; }
 
-    [Header("Future entitlement contract")]
-    [Tooltip("CAIP-2 chain identifier approved by this game build.")]
-    [SerializeField] private string approvedChain = "eip155:80002";
-    [Tooltip(
-        "Future collection implementing entitlementKeyOf. Leave this " +
-        "component unwired until that contract is deployed and approved."
-    )]
-    [SerializeField] private string approvedCollection;
-
-    public IEnumerator ResolveVerifiedTokenEntitlement(
-        TokenReference verifiedToken,
-        Action<TokenEntitlement> onResolved,
-        Action<string> onError
-    )
+    public IEnumerator ResolveVerifiedTokenEntitlement(TokenReference token,
+        Action<TokenEntitlement> onResolved, Action<string> onError)
     {
-        if (!IsApprovedToken(verifiedToken))
+        LastVerificationUnavailable = false;
+        if (approvedSource == null || !approvedSource.Contains(token) ||
+            !PDTVerificationPolicy.TryTokenId(token.TokenID, out BigInteger id))
+        { onError?.Invoke("Rejected token outside the approved PDT source."); yield break; }
+        var context = new PDTReadContext(walletConnector, approvedSource.Chain);
+        var key = new PDTReadResult<byte[]>();
+        yield return PDTChainRead.Run(() => AppKit.Evm.ReadContractAsync<byte[]>(
+            token.Collection, KeyABI, "entitlementKeyOf", new object[] { id }), context, key, id);
+        if (key.Status != PDTReadStatus.Success)
         {
-            onError?.Invoke(
-                "The verified token is outside the approved entitlement " +
-                "chain or collection."
-            );
+            LastVerificationUnavailable = key.Status != PDTReadStatus.Nonexistent;
+            onError?.Invoke(LastVerificationUnavailable ? "Entitlement verification unavailable." : "Token no longer exists.");
             yield break;
         }
+        if (!TryDecodeBytes32(key.Value, out string decoded))
+        { onError?.Invoke("Rejected invalid PDT entitlement encoding."); yield break; }
 
-        if (
-            !BigInteger.TryParse(
-                verifiedToken.TokenID,
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out BigInteger tokenID
-            ) ||
-            tokenID < BigInteger.Zero
-        )
+        // Confirm ownership again after the entitlement lookup.
+        var owner = new PDTReadResult<string>();
+        yield return PDTChainRead.Run(() => AppKit.Evm.ReadContractAsync<string>(
+            token.Collection, OwnerABI, "ownerOf", new object[] { id }), context, owner, id);
+        if (!context.IsCurrent || !approvedSource.Contains(token)) yield break;
+        if (owner.Status != PDTReadStatus.Success)
         {
-            onError?.Invoke("The verified token ID is invalid.");
+            LastVerificationUnavailable = owner.Status != PDTReadStatus.Nonexistent;
+            onError?.Invoke(LastVerificationUnavailable ? "Ownership revalidation unavailable." : "Token no longer exists.");
             yield break;
         }
-
-        if (
-            !TryStartTask(
-                () => AppKit.Evm.ReadContractAsync<byte[]>(
-                    approvedCollection.Trim(),
-                    EntitlementKeyOfABI,
-                    "entitlementKeyOf",
-                    new object[] { tokenID }
-                ),
-                out Task<byte[]> entitlementTask,
-                out string entitlementStartError
-            )
-        )
-        {
-            onError?.Invoke(
-                "On-chain entitlementKeyOf lookup failed: " +
-                entitlementStartError
-            );
-            yield break;
-        }
-
-        while (!entitlementTask.IsCompleted)
-        {
-            yield return null;
-        }
-
-        if (
-            !TryGetTaskResult(
-                entitlementTask,
-                out byte[] encodedEntitlementKey,
-                out string entitlementError
-            )
-        )
-        {
-            onError?.Invoke(
-                "On-chain entitlementKeyOf lookup failed: " +
-                entitlementError
-            );
-            yield break;
-        }
-
-        if (
-            !TryDecodeBytes32(
-                encodedEntitlementKey,
-                out string entitlementKey
-            )
-        )
-        {
-            onError?.Invoke(
-                "The contract returned an invalid canonical entitlement key."
-            );
-            yield break;
-        }
-
-        TokenEntitlement entitlement = new TokenEntitlement(
-            verifiedToken,
-            entitlementKey
-        );
-
-        onResolved?.Invoke(entitlement);
-
-        Debug.Log(
-            $"Resolved on-chain entitlement {entitlement.EntitlementKey} " +
-            $"for token {verifiedToken.TokenID}."
-        );
+        if (!string.Equals(owner.Value, context.Address, StringComparison.OrdinalIgnoreCase))
+        { onError?.Invoke("Token is no longer owned by this wallet."); yield break; }
+        onResolved?.Invoke(new TokenEntitlement(token, decoded));
+        Debug.Log($"Resolved direct PDT entitlement {decoded} for token {id}.");
     }
 
-    private bool IsApprovedToken(TokenReference token)
+    public static bool TryDecodeBytes32(byte[] bytes, out string key)
     {
-        return
-            token != null &&
-            !string.IsNullOrWhiteSpace(approvedChain) &&
-            !string.IsNullOrWhiteSpace(approvedCollection) &&
-            string.Equals(
-                token.Chain,
-                approvedChain.Trim(),
-                StringComparison.OrdinalIgnoreCase
-            ) &&
-            string.Equals(
-                token.Collection,
-                approvedCollection.Trim(),
-                StringComparison.OrdinalIgnoreCase
-            );
-    }
-
-    private static bool TryDecodeBytes32(
-        byte[] encodedValue,
-        out string entitlementKey
-    )
-    {
-        entitlementKey = null;
-
-        if (encodedValue == null || encodedValue.Length != 32)
-        {
-            return false;
-        }
-
-        int valueLength = Array.IndexOf(encodedValue, (byte)0);
-
-        if (valueLength < 0)
-        {
-            valueLength = encodedValue.Length;
-        }
-
-        for (int index = valueLength; index < encodedValue.Length; index++)
-        {
-            if (encodedValue[index] != 0)
-            {
-                return false;
-            }
-        }
-
-        string decodedValue = Encoding.ASCII.GetString(
-            encodedValue,
-            0,
-            valueLength
-        );
-
-        return EntitlementKeys.TryNormalize(
-            decodedValue,
-            out entitlementKey
-        );
-    }
-
-    private static bool TryGetTaskResult<T>(
-        Task<T> task,
-        out T result,
-        out string errorMessage
-    )
-    {
-        if (task.IsCanceled)
-        {
-            result = default;
-            errorMessage = "The blockchain request was cancelled.";
-            return false;
-        }
-
-        if (task.IsFaulted)
-        {
-            result = default;
-            errorMessage = task.Exception
-                ?.GetBaseException()
-                .Message ?? "The blockchain request failed.";
-            return false;
-        }
-
-        result = task.Result;
-        errorMessage = null;
-        return true;
-    }
-
-    private static bool TryStartTask<T>(
-        Func<Task<T>> taskFactory,
-        out Task<T> task,
-        out string errorMessage
-    )
-    {
-        try
-        {
-            task = taskFactory();
-            errorMessage = null;
-            return true;
-        }
-        catch (Exception exception)
-        {
-            task = null;
-            errorMessage = exception.Message;
-            return false;
-        }
+        key = null;
+        if (bytes == null || bytes.Length != 32) return false;
+        int length = Array.IndexOf(bytes, (byte)0);
+        if (length < 0) length = 32;
+        for (int i = length; i < 32; i++) if (bytes[i] != 0) return false;
+        for (int i = 0; i < length; i++) if (bytes[i] > 127) return false;
+        return EntitlementKeys.TryNormalize(Encoding.ASCII.GetString(bytes, 0, length), out key);
     }
 }

@@ -285,17 +285,17 @@ public sealed class WalletStatusUI : MonoBehaviour
             entitlementInProgress = false;
             SetVehicleLocked();
             SetStatus(
-                "No PDT vehicle NFT was found in this wallet.",
+                ownershipReader.HasUnavailableResults
+                    ? "Verification incomplete. No fresh vehicle access granted."
+                    : "No verified PDT vehicle NFT found in this wallet.",
                 NoticeColor
             );
         }
         else
         {
-            entitlementInProgress = true;
-            SetStatus(
-                "Ownership verified. Resolving vehicle entitlement...",
-                ReadyColor
-            );
+            entitlementInProgress = unlockCoordinator.IsResolving;
+            if (entitlementInProgress)
+                SetStatus("Ownership verified. Resolving vehicle entitlement...", ReadyColor);
         }
 
         UpdateButtonStates();
@@ -331,6 +331,7 @@ public sealed class WalletStatusUI : MonoBehaviour
 
     private void HandleEntitlementResolutionStarted()
     {
+        scanInProgress = false;
         entitlementInProgress = true;
         SetStatus(
             "Resolving verified vehicle entitlement...",
@@ -344,7 +345,8 @@ public sealed class WalletStatusUI : MonoBehaviour
         entitlementInProgress = false;
         string vehicleWord = vehicleCount == 1 ? "vehicle" : "vehicles";
         SetStatus(
-            $"Ready — {vehicleCount} {vehicleWord} unlocked.",
+            $"Ready — {vehicleCount} {vehicleWord} unlocked." +
+                (unlockCoordinator.HasUnavailableResults ? " Some verification is incomplete." : ""),
             SuccessColor
         );
         UpdateButtonStates();
@@ -381,7 +383,7 @@ public sealed class WalletStatusUI : MonoBehaviour
 
     private void HandleRefreshButtonClicked()
     {
-        ownershipReader.RefreshOwnership();
+        unlockCoordinator.BeginProtectedSession();
     }
 
     private void HandleDisconnectButtonClicked()

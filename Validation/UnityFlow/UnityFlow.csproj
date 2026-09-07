@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <NoWarn>0649</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/PDT/Scripts/TokenReference.cs" Link="TokenReference.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/TokenEntitlement.cs" Link="TokenEntitlement.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/EntitlementKeys.cs" Link="EntitlementKeys.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/PDTVerificationPolicy.cs" Link="PDTVerificationPolicy.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/PDTChainRead.cs" Link="PDTChainRead.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/ApprovedPDTCollection.cs" Link="ApprovedPDTCollection.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/ITokenDiscoveryService.cs" Link="ITokenDiscoveryService.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/ITokenEntitlementService.cs" Link="ITokenEntitlementService.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/ERC721OwnershipReader.cs" Link="ERC721OwnershipReader.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/ReownEntitlementKeyService.cs" Link="ReownEntitlementKeyService.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/VerifiedVehicleUnlockCoordinator.cs" Link="VerifiedVehicleUnlockCoordinator.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/OwnedVehicleRegistry.cs" Link="OwnedVehicleRegistry.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/VehicleCatalog.cs" Link="VehicleCatalog.cs" />
+    <Compile Include="../../Assets/PDT/Scripts/VehicleData.cs" Link="VehicleData.cs" />
+  </ItemGroup>
+</Project>

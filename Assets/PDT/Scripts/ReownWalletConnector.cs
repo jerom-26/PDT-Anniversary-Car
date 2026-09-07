@@ -22,6 +22,9 @@ public class ReownWalletConnector : MonoBehaviour
     public bool IsConnected => !string.IsNullOrWhiteSpace(ConnectedAddress);
     public bool IsDisconnecting { get; private set; }
     public string ConnectedAddress { get; private set; }
+    public string ConnectedChain { get; private set; }
+    public int ContextVersion { get; private set; }
+    public event Action WalletContextChanged;
 
     public event Action WalletInitialized;
     public event Action<string> WalletConnected;
@@ -61,7 +64,7 @@ public class ReownWalletConnector : MonoBehaviour
 
             if (sessionAvailable)
             {
-                SetConnectedAddress(AppKit.Account.Address);
+                SetConnectedAddress(AppKit.Account.Address, AppKit.Account.ChainId);
             }
             else if (openModalWhenNoSession)
             {
@@ -187,6 +190,7 @@ public class ReownWalletConnector : MonoBehaviour
         AppKit.AccountConnected += HandleAccountConnected;
         AppKit.AccountChanged += HandleAccountChanged;
         AppKit.AccountDisconnected += HandleAccountDisconnected;
+        AppKit.ConnectorController.ChainChanged += HandleChainChanged;
         eventsSubscribed = true;
     }
 
@@ -200,6 +204,7 @@ public class ReownWalletConnector : MonoBehaviour
         AppKit.AccountConnected -= HandleAccountConnected;
         AppKit.AccountChanged -= HandleAccountChanged;
         AppKit.AccountDisconnected -= HandleAccountDisconnected;
+        AppKit.ConnectorController.ChainChanged -= HandleChainChanged;
         eventsSubscribed = false;
     }
 
@@ -208,7 +213,7 @@ public class ReownWalletConnector : MonoBehaviour
         Connector.AccountConnectedEventArgs eventArgs
     )
     {
-        SetConnectedAddress(eventArgs.Account.Address);
+        SetConnectedAddress(eventArgs.Account.Address, eventArgs.Account.ChainId);
     }
 
     private void HandleAccountChanged(
@@ -216,7 +221,7 @@ public class ReownWalletConnector : MonoBehaviour
         Connector.AccountChangedEventArgs eventArgs
     )
     {
-        SetConnectedAddress(eventArgs.Account.Address);
+        SetConnectedAddress(eventArgs.Account.Address, eventArgs.Account.ChainId);
     }
 
     private void HandleAccountDisconnected(
@@ -230,11 +235,21 @@ public class ReownWalletConnector : MonoBehaviour
         }
 
         ConnectedAddress = null;
+        ConnectedChain = null;
+        ContextVersion++;
+        WalletContextChanged?.Invoke();
         WalletDisconnected?.Invoke();
         Debug.Log("Wallet disconnected.");
     }
 
-    private void SetConnectedAddress(string address)
+    private void HandleChainChanged(object sender, Connector.ChainChangedEventArgs eventArgs)
+    {
+        ConnectedChain = eventArgs.ChainId;
+        ContextVersion++;
+        WalletContextChanged?.Invoke();
+    }
+
+    private void SetConnectedAddress(string address, string chain)
     {
         if (string.IsNullOrWhiteSpace(address))
         {
@@ -249,14 +264,17 @@ public class ReownWalletConnector : MonoBehaviour
                 ConnectedAddress,
                 address,
                 StringComparison.OrdinalIgnoreCase
-            )
+            ) && string.Equals(ConnectedChain, chain, StringComparison.OrdinalIgnoreCase)
         )
         {
             return;
         }
 
         ConnectedAddress = address;
+        ConnectedChain = chain;
+        ContextVersion++;
         WalletConnected?.Invoke(ConnectedAddress);
+        WalletContextChanged?.Invoke();
         Debug.Log($"Wallet connected: {ConnectedAddress}");
     }
 
