@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PDT V2 — Amoy signing</title><link rel="stylesheet" href="/style.css"></head>
+<body><main><p class="label">PDT V2 · POLYGON AMOY TESTNET</p><h1>Deploy and test your official NFT</h1>
+<p>This local tool prepares seven transactions. Review and sign each one in MetaMask. It never asks for a private key.</p>
+<section><h2>Agreed test configuration</h2><dl id="config"></dl><p>For this Amoy test only, the designated admin will also receive the minter, entitlement-admin and upgrade-admin roles. Role checks remain separate in the contract.</p></section>
+<ol id="steps"></ol><button id="connect">Connect MetaMask</button> <button id="next" disabled>Prepare next transaction</button>
+<p id="status" role="status">Loading tested contract artifacts…</p><pre id="details"></pre>
+<p>After the mint, this page checks ownership, the direct entitlement and proxy implementation on-chain. Keep this tab open until verification finishes.</p>
+</main><script src="/ethers.js"></script><script src="/app.js"></script></body></html>

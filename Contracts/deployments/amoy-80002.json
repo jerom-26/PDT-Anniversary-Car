@@ -1,0 +1,44 @@
+{
+  "network": "Polygon Amoy",
+  "chainId": 80002,
+  "purpose": "PDT V2 development test deployment",
+  "name": "PDT V2 Amoy",
+  "symbol": "PDTV2",
+  "admin": "0xD679D38406570fF5Cfa05d6857963e5BaA329BcB",
+  "recipient": "0xD679D38406570fF5Cfa05d6857963e5BaA329BcB",
+  "implementation": {
+    "address": "0xa0782fCfd742214fEe66b8189f187f0C0758cD9d",
+    "transactionHash": "0xfdc9fb8fc8901ad4842a3a9a6e499a225304a09ce8dc08b72ac96753b65f8e10",
+    "blockNumber": 46922020
+  },
+  "proxy": {
+    "address": "0xD3E16C6892d7Bda4A908294253b305faC4c70D97",
+    "transactionHash": "0x70fcc720ade94b51e93fb2cb0d633c9078a80403dac92f9bf9a6c950adb2ce6f",
+    "blockNumber": 46922692
+  },
+  "roleTransactions": {
+    "MINTER": {
+      "transactionHash": "0x1b7d8d8dbf42e1c858aae1ab15f908885cf460497bdca8c1b0612625105bb1cd",
+      "blockNumber": 46922772
+    },
+    "ENTITLEMENT_ADMIN": {
+      "transactionHash": "0x07400ff100e5f8083aac24f64ded71daad831196225b7240a2fea6eeb08e29d6",
+      "blockNumber": 46922846
+    },
+    "UPGRADE_ADMIN": {
+      "transactionHash": "0x2f03858b9e3e7d373628c95d8a228b6012d846d7692fd35a869f69bc050684ba",
+      "blockNumber": 46922895
+    }
+  },
+  "entitlement": {
+    "key": "PDT_VEHICLE_DREAM_MOBILE_80TH",
+    "encodedBytes32": "0x5044545f56454849434c455f445245414d5f4d4f42494c455f38305448000000",
+    "approvalTransactionHash": "0xf1509122e9ae0653a0aa606480d7a1c4f72cce8366f5eb8e15081ed5f87a6630",
+    "approvalBlockNumber": 46922935
+  },
+  "mint": {
+    "tokenId": "0",
+    "transactionHash": "0x2482bd373012e6f4729cb28fe0bafd19709c7087b00cd3a404d44aa6b9e6b2a3",
+    "blockNumber": 46922955
+  }
+}

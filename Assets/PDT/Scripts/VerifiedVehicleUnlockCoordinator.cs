@@ -20,6 +20,14 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
 
     private ITokenEntitlementService tokenEntitlementService;
     private Coroutine entitlementResolutionCoroutine;
+    public bool IsResolving { get; private set; }
+    public bool HasUnavailableResults { get; private set; }
+
+    // Entry point for every new protected driving session/action.
+    public void BeginProtectedSession()
+    {
+        if (ownershipReader != null) ownershipReader.RefreshOwnership();
+    }
 
     public event Action EntitlementResolutionStarted;
     public event Action<int> EntitlementResolutionCompleted;
@@ -98,13 +106,17 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
 
         if (verifiedTokens == null || verifiedTokens.Count == 0)
         {
-            Debug.Log("The connected wallet has no PDT vehicles to unlock.");
+            Debug.Log(ownershipReader.HasUnavailableResults
+                ? "Verification incomplete; no fresh vehicle access granted."
+                : "No verified PDT vehicles found for this wallet.");
             return;
         }
 
         List<VerifiedNFT> tokenSnapshot =
             new List<VerifiedNFT>(verifiedTokens);
 
+        IsResolving = true;
+        HasUnavailableResults = ownershipReader.HasUnavailableResults;
         EntitlementResolutionStarted?.Invoke();
         entitlementResolutionCoroutine = StartCoroutine(
             ResolveVerifiedEntitlements(tokenSnapshot)
@@ -130,6 +142,8 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
         IReadOnlyList<VerifiedNFT> verifiedTokens
     )
     {
+        int generation = ownershipReader.ScanGeneration;
+        var resolved = new List<TokenEntitlement>();
         foreach (VerifiedNFT verifiedToken in verifiedTokens)
         {
             if (verifiedToken?.tokenReference == null)
@@ -138,6 +152,7 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
                     "Ownership verification returned an invalid token " +
                     "reference."
                 );
+
                 continue;
             }
 
@@ -150,6 +165,14 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
                     entitlement => resolvedEntitlement = entitlement,
                     error => resolutionError = error
                 );
+
+            if (generation != ownershipReader.ScanGeneration || !ownershipReader.IsVerificationContextCurrent)
+            {
+                HandleOwnershipCleared();
+                yield break;
+            }
+            if (tokenEntitlementServiceSource is ReownEntitlementKeyService direct && direct.LastVerificationUnavailable)
+                HasUnavailableResults = true;
 
             if (!string.IsNullOrWhiteSpace(resolutionError))
             {
@@ -169,19 +192,23 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
                 continue;
             }
 
-            ownedVehicleRegistry.TryRegisterResolvedEntitlement(
-                resolvedEntitlement,
-                out _
-            );
+            if (!verifiedToken.tokenReference.Equals(resolvedEntitlement.TokenReference))
+            { Debug.LogWarning("Rejected entitlement for a different token reference."); continue; }
+            resolved.Add(resolvedEntitlement);
         }
 
         entitlementResolutionCoroutine = null;
+        IsResolving = false;
+        if (generation != ownershipReader.ScanGeneration || !ownershipReader.IsVerificationContextCurrent) yield break;
+        foreach (TokenEntitlement entitlement in resolved)
+            ownedVehicleRegistry.TryRegisterResolvedEntitlement(entitlement, out _);
 
         if (ownedVehicleRegistry.UnlockedVehicles.Count == 0)
         {
             ReportEntitlementFailure(
-                "The wallet owns verified NFTs, but none provide a " +
-                "supported vehicle entitlement."
+                HasUnavailableResults
+                    ? "Verification unavailable for some tokens; no supported vehicle could be authorized."
+                    : "Verified tokens provide no supported vehicle entitlement."
             );
             yield break;
         }
@@ -230,6 +257,7 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
 
     private void StopEntitlementResolution()
     {
+        IsResolving = false;
         if (entitlementResolutionCoroutine == null)
         {
             return;
@@ -250,6 +278,7 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
 
     private void ReportEntitlementFailure(string message)
     {
+        IsResolving = false;
         EntitlementResolutionFailed?.Invoke(message);
         Debug.LogError(message);
     }
