@@ -9,11 +9,23 @@ public class VehicleSpawner : MonoBehaviour
 
     public GameObject SpawnedVehicle => spawnedVehicle;
 
-    public bool TrySpawn(VehicleData vehicleData)
+    public bool TrySpawn(
+        VehicleData vehicleData,
+        OwnedVehicleRegistry authorization
+    )
     {
         if (vehicleData == null)
         {
             Debug.LogError("Vehicle Data is not assigned.");
+            return false;
+        }
+
+        if (authorization == null || !authorization.IsUnlocked(vehicleData))
+        {
+            Debug.LogError(
+                $"Spawn denied for {vehicleData.DisplayName}: no verified " +
+                "vehicle entitlement is currently registered."
+            );
             return false;
         }
 
@@ -64,14 +76,16 @@ public class VehicleSpawner : MonoBehaviour
 
     public void Despawn()
     {
-        if (spawnedVehicle == null)
+        if (spawnedVehicle != null)
         {
-            return;
+            Destroy(spawnedVehicle);
+            spawnedVehicle = null;
         }
 
-        Destroy(spawnedVehicle);
-        spawnedVehicle = null;
-        cameraFollow.SetTarget(null);
+        if (cameraFollow != null)
+        {
+            cameraFollow.SetTarget(null);
+        }
     }
 
     private static Transform FindCameraTarget(Transform vehicleRoot)
