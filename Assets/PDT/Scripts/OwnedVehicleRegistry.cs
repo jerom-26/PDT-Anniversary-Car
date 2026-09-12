@@ -13,6 +13,11 @@ public class OwnedVehicleRegistry : MonoBehaviour
     public event Action<VehicleData> VehicleUnlocked;
     public event Action RegistryCleared;
 
+    public bool IsUnlocked(VehicleData vehicleData)
+    {
+        return vehicleData != null && unlockedVehicles.Contains(vehicleData);
+    }
+
     public bool TryRegisterResolvedEntitlement(
         TokenEntitlement entitlement,
         out VehicleData vehicleData
