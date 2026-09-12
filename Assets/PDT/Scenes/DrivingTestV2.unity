@@ -661,8 +661,6 @@ MonoBehaviour:
   walletConnector: {fileID: 1972607775}
   scanWhenWalletConnects: 1
   approvedSource: {fileID: 11400000, guid: 9bc85cdef2a1484b9e85ef4d38927114, type: 2}
-  chain: eip155:80002
-  contractAddress:
   tokenDiscoveryServiceSource: {fileID: 1976987152}
 --- !u!1 &1976987145
 GameObject:
@@ -700,6 +698,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VehicleSpawner
   spawnPoint: {fileID: 2132419772}
   cameraFollow: {fileID: 330585548}
+  ownedVehicleRegistry: {fileID: 1976987149}
 --- !u!4 &1976987147
 Transform:
   m_ObjectHideFlags: 0

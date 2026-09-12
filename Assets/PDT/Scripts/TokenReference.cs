@@ -39,11 +39,15 @@ public sealed class TokenReference : IEquatable<TokenReference>
     {
         return
             other != null &&
-            string.Equals(Chain, other.Chain, StringComparison.Ordinal) &&
+            string.Equals(
+                Chain,
+                other.Chain,
+                StringComparison.OrdinalIgnoreCase
+            ) &&
             string.Equals(
                 Collection,
                 other.Collection,
-                StringComparison.Ordinal
+                StringComparison.OrdinalIgnoreCase
             ) &&
             string.Equals(TokenID, other.TokenID, StringComparison.Ordinal);
     }
@@ -58,8 +62,10 @@ public sealed class TokenReference : IEquatable<TokenReference>
         unchecked
         {
             int hash = 17;
-            hash = hash * 31 + StringComparer.Ordinal.GetHashCode(Chain);
-            hash = hash * 31 + StringComparer.Ordinal.GetHashCode(Collection);
+            hash = hash * 31 +
+                StringComparer.OrdinalIgnoreCase.GetHashCode(Chain);
+            hash = hash * 31 +
+                StringComparer.OrdinalIgnoreCase.GetHashCode(Collection);
             hash = hash * 31 + StringComparer.Ordinal.GetHashCode(TokenID);
             return hash;
         }

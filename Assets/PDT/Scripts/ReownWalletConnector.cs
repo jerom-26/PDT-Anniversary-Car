@@ -2,6 +2,7 @@ using System;
 using Reown.AppKit.Unity;
 using UnityEngine;
 
+[DisallowMultipleComponent]
 public class ReownWalletConnector : MonoBehaviour
 {
     [Header("Reown project")]
@@ -19,7 +20,8 @@ public class ReownWalletConnector : MonoBehaviour
     [SerializeField] private bool openModalWhenNoSession;
 
     public bool IsInitialized { get; private set; }
-    public bool IsConnected => !string.IsNullOrWhiteSpace(ConnectedAddress);
+    public bool IsConnected =>
+        PDTVerificationPolicy.IsAddress(ConnectedAddress);
     public bool IsDisconnecting { get; private set; }
     public string ConnectedAddress { get; private set; }
     public string ConnectedChain { get; private set; }
@@ -33,12 +35,13 @@ public class ReownWalletConnector : MonoBehaviour
     public event Action<string> WalletError;
 
     private bool eventsSubscribed;
+    private bool isDestroyed;
 
     private async void Start()
     {
         if (string.IsNullOrWhiteSpace(projectID))
         {
-            Debug.LogError(
+            ReportWalletError(
                 "ReownWalletConnector requires a Reown Project ID in the Inspector."
             );
             return;
@@ -49,6 +52,11 @@ public class ReownWalletConnector : MonoBehaviour
             if (!AppKit.IsInitialized)
             {
                 await AppKit.InitializeAsync(CreateConfig());
+            }
+
+            if (isDestroyed)
+            {
+                return;
             }
 
             IsInitialized = true;
@@ -62,9 +70,22 @@ public class ReownWalletConnector : MonoBehaviour
                     await AppKit.ConnectorController.TryResumeSessionAsync();
             }
 
+            if (isDestroyed)
+            {
+                return;
+            }
+
             if (sessionAvailable)
             {
-                SetConnectedAddress(AppKit.Account.Address, AppKit.Account.ChainId);
+                if (
+                    !TrySetConnectedAddress(
+                        AppKit.Account.Address,
+                        AppKit.Account.ChainId
+                    )
+                )
+                {
+                    return;
+                }
             }
             else if (openModalWhenNoSession)
             {
@@ -76,7 +97,13 @@ public class ReownWalletConnector : MonoBehaviour
         }
         catch (Exception exception)
         {
+            if (isDestroyed)
+            {
+                return;
+            }
+
             IsInitialized = false;
+            ClearConnectionState();
             ReportWalletError(
                 $"Reown AppKit initialization failed: {exception.Message}"
             );
@@ -85,6 +112,7 @@ public class ReownWalletConnector : MonoBehaviour
 
     private void OnDestroy()
     {
+        isDestroyed = true;
         UnsubscribeFromAppKitEvents();
     }
 
@@ -96,7 +124,16 @@ public class ReownWalletConnector : MonoBehaviour
             return;
         }
 
-        AppKit.OpenModal();
+        try
+        {
+            AppKit.OpenModal();
+        }
+        catch (Exception exception)
+        {
+            ReportWalletError(
+                $"Wallet selection could not be opened: {exception.Message}"
+            );
+        }
     }
 
     public void OpenAccountModal()
@@ -109,7 +146,16 @@ public class ReownWalletConnector : MonoBehaviour
             return;
         }
 
-        AppKit.OpenModal(ViewType.Account);
+        try
+        {
+            AppKit.OpenModal(ViewType.Account);
+        }
+        catch (Exception exception)
+        {
+            ReportWalletError(
+                $"Wallet account view could not be opened: {exception.Message}"
+            );
+        }
     }
 
     public async void DisconnectWallet()
@@ -121,11 +167,15 @@ public class ReownWalletConnector : MonoBehaviour
 
         if (!AppKit.IsInitialized || !AppKit.IsAccountConnected)
         {
+            ClearConnectionState();
             ReportWalletError("There is no connected wallet to disconnect.");
             return;
         }
 
         IsDisconnecting = true;
+        // Revoke local authorization immediately. A slow or failed remote
+        // disconnect must never leave old wallet entitlements active.
+        ClearConnectionState();
 
         try
         {
@@ -140,7 +190,11 @@ public class ReownWalletConnector : MonoBehaviour
         finally
         {
             IsDisconnecting = false;
-            WalletDisconnectCompleted?.Invoke();
+
+            if (!isDestroyed)
+            {
+                WalletDisconnectCompleted?.Invoke();
+            }
         }
     }
 
@@ -187,6 +241,13 @@ public class ReownWalletConnector : MonoBehaviour
             return;
         }
 
+        if (AppKit.ConnectorController == null)
+        {
+            throw new InvalidOperationException(
+                "Reown connector controller is unavailable after initialization."
+            );
+        }
+
         AppKit.AccountConnected += HandleAccountConnected;
         AppKit.AccountChanged += HandleAccountChanged;
         AppKit.AccountDisconnected += HandleAccountDisconnected;
@@ -196,15 +257,19 @@ public class ReownWalletConnector : MonoBehaviour
 
     private void UnsubscribeFromAppKitEvents()
     {
-        if (!eventsSubscribed || !AppKit.IsInitialized)
+        if (!eventsSubscribed)
         {
             return;
         }
 
-        AppKit.AccountConnected -= HandleAccountConnected;
-        AppKit.AccountChanged -= HandleAccountChanged;
-        AppKit.AccountDisconnected -= HandleAccountDisconnected;
-        AppKit.ConnectorController.ChainChanged -= HandleChainChanged;
+        if (AppKit.ConnectorController != null)
+        {
+            AppKit.AccountConnected -= HandleAccountConnected;
+            AppKit.AccountChanged -= HandleAccountChanged;
+            AppKit.AccountDisconnected -= HandleAccountDisconnected;
+            AppKit.ConnectorController.ChainChanged -= HandleChainChanged;
+        }
+
         eventsSubscribed = false;
     }
 
@@ -213,7 +278,18 @@ public class ReownWalletConnector : MonoBehaviour
         Connector.AccountConnectedEventArgs eventArgs
     )
     {
-        SetConnectedAddress(eventArgs.Account.Address, eventArgs.Account.ChainId);
+        if (eventArgs == null)
+        {
+            RejectInvalidWalletContext(
+                "Reown returned an invalid wallet connection event."
+            );
+            return;
+        }
+
+        TrySetConnectedAddress(
+            eventArgs.Account.Address,
+            eventArgs.Account.ChainId
+        );
     }
 
     private void HandleAccountChanged(
@@ -221,7 +297,18 @@ public class ReownWalletConnector : MonoBehaviour
         Connector.AccountChangedEventArgs eventArgs
     )
     {
-        SetConnectedAddress(eventArgs.Account.Address, eventArgs.Account.ChainId);
+        if (eventArgs == null)
+        {
+            RejectInvalidWalletContext(
+                "Reown returned an invalid wallet account-change event."
+            );
+            return;
+        }
+
+        TrySetConnectedAddress(
+            eventArgs.Account.Address,
+            eventArgs.Account.ChainId
+        );
     }
 
     private void HandleAccountDisconnected(
@@ -229,35 +316,62 @@ public class ReownWalletConnector : MonoBehaviour
         Connector.AccountDisconnectedEventArgs eventArgs
     )
     {
+        ClearConnectionState();
+    }
+
+    private void HandleChainChanged(object sender, Connector.ChainChangedEventArgs eventArgs)
+    {
         if (!IsConnected)
         {
             return;
         }
 
-        ConnectedAddress = null;
-        ConnectedChain = null;
-        ContextVersion++;
-        WalletContextChanged?.Invoke();
-        WalletDisconnected?.Invoke();
-        Debug.Log("Wallet disconnected.");
-    }
+        string chain = eventArgs?.ChainId?.Trim();
 
-    private void HandleChainChanged(object sender, Connector.ChainChangedEventArgs eventArgs)
-    {
-        ConnectedChain = eventArgs.ChainId;
-        ContextVersion++;
-        WalletContextChanged?.Invoke();
-    }
-
-    private void SetConnectedAddress(string address, string chain)
-    {
-        if (string.IsNullOrWhiteSpace(address))
+        if (string.IsNullOrWhiteSpace(chain))
         {
-            Debug.LogError("Reown returned an empty wallet address.");
+            RejectInvalidWalletContext(
+                "Reown returned an empty wallet network."
+            );
             return;
         }
 
-        address = address.Trim();
+        if (
+            string.Equals(
+                ConnectedChain,
+                chain,
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            return;
+        }
+
+        ConnectedChain = chain;
+        ContextVersion++;
+        WalletContextChanged?.Invoke();
+    }
+
+    private bool TrySetConnectedAddress(string address, string chain)
+    {
+        address = address?.Trim();
+        chain = chain?.Trim();
+
+        if (!PDTVerificationPolicy.IsAddress(address))
+        {
+            RejectInvalidWalletContext(
+                "Reown returned an invalid EVM wallet address."
+            );
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(chain))
+        {
+            RejectInvalidWalletContext(
+                "Reown returned an empty wallet network."
+            );
+            return false;
+        }
 
         if (
             string.Equals(
@@ -267,7 +381,7 @@ public class ReownWalletConnector : MonoBehaviour
             ) && string.Equals(ConnectedChain, chain, StringComparison.OrdinalIgnoreCase)
         )
         {
-            return;
+            return true;
         }
 
         ConnectedAddress = address;
@@ -276,6 +390,37 @@ public class ReownWalletConnector : MonoBehaviour
         WalletConnected?.Invoke(ConnectedAddress);
         WalletContextChanged?.Invoke();
         Debug.Log($"Wallet connected: {ConnectedAddress}");
+        return true;
+    }
+
+    private void RejectInvalidWalletContext(string message)
+    {
+        ClearConnectionState();
+        ReportWalletError(message);
+    }
+
+    private void ClearConnectionState()
+    {
+        bool wasConnected = IsConnected;
+        bool hadContext =
+            wasConnected || !string.IsNullOrWhiteSpace(ConnectedChain);
+
+        ConnectedAddress = null;
+        ConnectedChain = null;
+
+        if (!hadContext)
+        {
+            return;
+        }
+
+        ContextVersion++;
+        WalletContextChanged?.Invoke();
+
+        if (wasConnected)
+        {
+            WalletDisconnected?.Invoke();
+            Debug.Log("Wallet disconnected.");
+        }
     }
 
     private void ReportWalletError(string message)
