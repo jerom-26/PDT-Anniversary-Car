@@ -24,6 +24,15 @@ public class DevelopmentMetadataBootstrap : MonoBehaviour
 
     public void UnlockDevelopmentEntitlement()
     {
+        if (!Debug.isDebugBuild)
+        {
+            Debug.LogError(
+                "Development entitlement bootstrap is disabled in " +
+                "non-development builds."
+            );
+            return;
+        }
+
         if (
             ownedVehicleRegistry == null ||
             (spawnUnlockedVehicle && vehicleSpawner == null)
@@ -49,7 +58,7 @@ public class DevelopmentMetadataBootstrap : MonoBehaviour
             spawnUnlockedVehicle
         )
         {
-            vehicleSpawner.TrySpawn(vehicleData);
+            vehicleSpawner.TrySpawn(vehicleData, ownedVehicleRegistry);
         }
     }
 }
