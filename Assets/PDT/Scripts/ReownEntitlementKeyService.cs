@@ -18,9 +18,18 @@ public sealed class ReownEntitlementKeyService : MonoBehaviour, ITokenEntitlemen
         Action<TokenEntitlement> onResolved, Action<string> onError)
     {
         LastVerificationUnavailable = false;
+
+        if (walletConnector == null)
+        {
+            LastVerificationUnavailable = true;
+            onError?.Invoke("Entitlement verification has no wallet context.");
+            yield break;
+        }
+
         if (approvedSource == null || !approvedSource.Contains(token) ||
             !PDTVerificationPolicy.TryTokenId(token.TokenID, out BigInteger id))
         { onError?.Invoke("Rejected token outside the approved PDT source."); yield break; }
+
         var context = new PDTReadContext(walletConnector, approvedSource.Chain);
         var key = new PDTReadResult<byte[]>();
         yield return PDTChainRead.Run(() => AppKit.Evm.ReadContractAsync<byte[]>(
@@ -45,6 +54,13 @@ public sealed class ReownEntitlementKeyService : MonoBehaviour, ITokenEntitlemen
             onError?.Invoke(LastVerificationUnavailable ? "Ownership revalidation unavailable." : "Token no longer exists.");
             yield break;
         }
+        if (!PDTVerificationPolicy.IsAddress(owner.Value))
+        {
+            LastVerificationUnavailable = true;
+            onError?.Invoke("Ownership revalidation returned an invalid address.");
+            yield break;
+        }
+
         if (!string.Equals(owner.Value, context.Address, StringComparison.OrdinalIgnoreCase))
         { onError?.Invoke("Token is no longer owned by this wallet."); yield break; }
         onResolved?.Invoke(new TokenEntitlement(token, decoded));

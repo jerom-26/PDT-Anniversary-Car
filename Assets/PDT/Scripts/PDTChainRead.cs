@@ -15,14 +15,23 @@ public sealed class PDTReadContext
     {
         this.wallet = wallet;
         version = wallet != null ? wallet.ContextVersion : -1;
-        Address = wallet != null ? wallet.ConnectedAddress : null;
-        Chain = chain;
+        Address = wallet?.ConnectedAddress?.Trim();
+        Chain = chain?.Trim();
     }
-    public bool IsCurrent => wallet != null && wallet.IsConnected && AppKit.IsInitialized &&
+    public bool IsCurrent =>
+        wallet != null &&
+        wallet.IsConnected &&
+        PDTVerificationPolicy.IsAddress(Address) &&
+        !string.IsNullOrWhiteSpace(Chain) &&
+        AppKit.IsInitialized &&
         version == wallet.ContextVersion &&
         string.Equals(Address, wallet.ConnectedAddress, StringComparison.OrdinalIgnoreCase) &&
         string.Equals(Chain, wallet.ConnectedChain, StringComparison.OrdinalIgnoreCase) &&
-        string.Equals(Chain, AppKit.NetworkController.ActiveChain?.ChainId, StringComparison.OrdinalIgnoreCase);
+        string.Equals(
+            Chain,
+            AppKit.NetworkController?.ActiveChain?.ChainId,
+            StringComparison.OrdinalIgnoreCase
+        );
 }
 
 public enum PDTReadStatus { Pending, Success, Nonexistent, Unavailable, Stale }
@@ -37,11 +46,23 @@ public static class PDTChainRead
     public static IEnumerator Run<T>(Func<Task<T>> begin, PDTReadContext context,
         PDTReadResult<T> result, BigInteger? tokenId = null)
     {
+        if (result == null)
+        {
+            yield break;
+        }
+
+        if (begin == null || context == null)
+        {
+            result.Status = PDTReadStatus.Unavailable;
+            yield break;
+        }
+
         if (!context.IsCurrent) { result.Status = PDTReadStatus.Stale; yield break; }
         Task<T> task = null;
         Exception failure = null;
         try { task = begin(); } catch (Exception exception) { failure = exception; }
         if (failure != null) { result.Status = Classify(failure, tokenId); yield break; }
+        if (task == null) { result.Status = PDTReadStatus.Unavailable; yield break; }
         float deadline = Time.realtimeSinceStartup + 30f;
         while (!task.IsCompleted)
         {

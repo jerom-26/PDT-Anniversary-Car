@@ -2,13 +2,17 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+[DisallowMultipleComponent]
 public class OwnedVehicleRegistry : MonoBehaviour
 {
     [SerializeField] private VehicleCatalog vehicleCatalog;
 
     private readonly List<VehicleData> unlockedVehicles = new List<VehicleData>();
+    private IReadOnlyList<VehicleData> unlockedVehiclesView;
 
-    public IReadOnlyList<VehicleData> UnlockedVehicles => unlockedVehicles;
+    public IReadOnlyList<VehicleData> UnlockedVehicles =>
+        unlockedVehiclesView ??=
+            unlockedVehicles.AsReadOnly();
 
     public event Action<VehicleData> VehicleUnlocked;
     public event Action RegistryCleared;
@@ -38,34 +42,9 @@ public class OwnedVehicleRegistry : MonoBehaviour
         );
     }
 
-    public bool TryRegisterDevelopmentEntitlementKey(
-        string entitlementKey,
-        out VehicleData vehicleData
-    )
+    public bool IsUnlocked(VehicleData vehicleData)
     {
-        if (!Debug.isDebugBuild)
-        {
-            vehicleData = null;
-            Debug.LogError(
-                "Development entitlement registration is disabled in " +
-                "non-development builds."
-            );
-            return false;
-        }
-
-        if (vehicleCatalog == null)
-        {
-            vehicleData = null;
-            Debug.LogError(
-                "OwnedVehicleRegistry has no VehicleCatalog assigned."
-            );
-            return false;
-        }
-
-        return TryRegisterEntitlementKey(
-            entitlementKey,
-            out vehicleData
-        );
+        return vehicleData != null && unlockedVehicles.Contains(vehicleData);
     }
 
     private bool TryRegisterEntitlementKey(

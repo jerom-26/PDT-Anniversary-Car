@@ -34,6 +34,7 @@ static class Test
         var catalog = new VehicleCatalog(); Set(catalog, "vehicles", new[] { vehicle }); Set(f.Registry, "vehicleCatalog", catalog);
         Set(f.Coordinator, "ownershipReader", f.Reader); Set(f.Coordinator, "tokenEntitlementServiceSource", f.Entitlement);
         Set(f.Coordinator, "ownedVehicleRegistry", f.Registry); Set(f.Coordinator, "vehicleSpawner", f.Spawner);
+        f.Spawner.Registry = f.Registry;
         Enable(f.Reader); Enable(f.Coordinator);
         AppKit.Evm.Read = (address, method, args) => method switch {
             "balanceOf" => new BigInteger(tokens.Length), "ownerOf" => Owner, "entitlementKeyOf" => Key(), _ => throw new Exception("Unexpected method") };
@@ -44,6 +45,12 @@ static class Test
         Run("duplicate candidates and entitlements unlock once", () => {
             var f = Setup(Token("0"), Token("00"), Token("1")); f.Go();
             Equal(f.Reader.VerifiedTokens.Count, 2); Equal(f.Registry.UnlockedVehicles.Count, 1); Equal(f.Spawner.Spawned != null, true);
+        });
+        Run("token references deduplicate chain and contract casing", () => {
+            var lower = Token("0");
+            var upper = Token("0", Proxy.ToUpperInvariant(), "EIP155:80002");
+            Equal(lower.Equals(upper), true);
+            Equal(new HashSet<TokenReference> { lower, upper }.Count, 1);
         });
         Run("wrong chain and copied contract candidates are never read", () => {
             var f = Setup(Token("0", Other), Token("1", Proxy, "eip155:1")); int reads = 0;
@@ -95,6 +102,11 @@ static class Test
             var f = Setup(Token("0")); f.Go(); f.Discovery.Unavailable = true; var read = AppKit.Evm.Read;
             AppKit.Evm.Read = (a, m, args) => m == "ownerOf" ? Other : read(a, m, args);
             f.Go(); Equal(f.Registry.UnlockedVehicles.Count, 0); Equal(f.Reader.HasUnavailableResults, true);
+        });
+        Run("configuration failure clears previous authorization", () => {
+            var f = Setup(Token("0")); f.Go(); Equal(f.Registry.UnlockedVehicles.Count, 1);
+            Set(f.Reader, "approvedSource", null); f.Go();
+            Equal(f.Reader.VerifiedTokens.Count, 0); Equal(f.Registry.UnlockedVehicles.Count, 0); Equal(f.Spawner.Spawned == null, true);
         });
         Run("strict bytes32, uint256 bounds and exact nonexistent error", () => {
             Equal(ReownEntitlementKeyService.TryDecodeBytes32(Key(), out _), true);

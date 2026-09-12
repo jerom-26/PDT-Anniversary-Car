@@ -6,14 +6,20 @@ using System.Numerics;
 using Reown.AppKit.Unity;
 using UnityEngine;
 
-[Serializable]
 public sealed class VerifiedNFT
 {
-    public TokenReference tokenReference;
-    public string tokenID;
-    public VerifiedNFT(TokenReference reference) { tokenReference = reference; tokenID = reference.TokenID; }
+    public TokenReference TokenReference { get; }
+    public string TokenID => TokenReference.TokenID;
+
+    public VerifiedNFT(TokenReference tokenReference)
+    {
+        TokenReference = tokenReference ?? throw new ArgumentNullException(
+            nameof(tokenReference)
+        );
+    }
 }
 
+[DisallowMultipleComponent]
 public class ERC721OwnershipReader : MonoBehaviour
 {
     private const string BalanceABI = "function balanceOf(address owner) view returns (uint256)";
@@ -22,58 +28,109 @@ public class ERC721OwnershipReader : MonoBehaviour
     [SerializeField] private bool scanWhenWalletConnects = true;
     [Header("V2 shared approved source")]
     [SerializeField] private ApprovedPDTCollection approvedSource;
-    [Header("Legacy scene source")]
-    [SerializeField] private string chain = "eip155:80002";
-    [SerializeField] private string contractAddress = "0x021Ae9C7E520B1EdFdE488A7Df3EEd9BfC5786F3";
     [SerializeField] private MonoBehaviour tokenDiscoveryServiceSource;
 
     private readonly List<VerifiedNFT> verifiedTokens = new List<VerifiedNFT>();
     private readonly HashSet<TokenReference> knownCandidates = new HashSet<TokenReference>();
+    private IReadOnlyList<VerifiedNFT> verifiedTokensView;
     private Coroutine scan;
     private int generation;
     private PDTReadContext context;
-    private string sourceChain, sourceCollection;
-    public IReadOnlyList<VerifiedNFT> VerifiedTokens => verifiedTokens;
+    private string sourceChain;
+    private string sourceCollection;
+    public IReadOnlyList<VerifiedNFT> VerifiedTokens =>
+        verifiedTokensView ??= verifiedTokens.AsReadOnly();
     public bool IsScanning { get; private set; }
     public bool HasUnavailableResults { get; private set; }
     public int ScanGeneration => generation;
     public bool IsVerificationContextCurrent => context != null && context.IsCurrent &&
         string.Equals(sourceChain, ApprovedChain, StringComparison.OrdinalIgnoreCase) &&
         string.Equals(sourceCollection, ApprovedCollection, StringComparison.OrdinalIgnoreCase);
-    private string ApprovedChain => approvedSource != null ? approvedSource.Chain : chain?.Trim();
-    private string ApprovedCollection => approvedSource != null ? approvedSource.ProxyAddress : contractAddress?.Trim();
+    private string ApprovedChain => approvedSource?.Chain;
+    private string ApprovedCollection => approvedSource?.ProxyAddress;
     public event Action<VerifiedNFT> TokenVerified;
     public event Action OwnershipScanStarted;
     public event Action<IReadOnlyList<VerifiedNFT>> OwnershipScanCompleted;
     public event Action<string> OwnershipScanFailed;
     public event Action OwnershipCleared;
 
-    private void OnEnable() { if (walletConnector != null) walletConnector.WalletContextChanged += HandleContextChanged; }
-    private void Start() { if (scanWhenWalletConnects && walletConnector != null && walletConnector.IsConnected) RefreshOwnership(); }
+    private void OnEnable()
+    {
+        if (walletConnector != null)
+        {
+            walletConnector.WalletContextChanged += HandleContextChanged;
+        }
+    }
+
+    private void Start()
+    {
+        if (
+            scanWhenWalletConnects &&
+            walletConnector != null &&
+            walletConnector.IsConnected
+        )
+        {
+            RefreshOwnership();
+        }
+    }
+
     private void OnDisable()
     {
-        if (walletConnector != null) walletConnector.WalletContextChanged -= HandleContextChanged;
+        if (walletConnector != null)
+        {
+            walletConnector.WalletContextChanged -= HandleContextChanged;
+        }
+
         Invalidate();
     }
+
     private void HandleContextChanged()
     {
         knownCandidates.Clear();
         Invalidate();
-        if (scanWhenWalletConnects && walletConnector.IsConnected) RefreshOwnership();
+
+        if (
+            scanWhenWalletConnects &&
+            walletConnector != null &&
+            walletConnector.IsConnected
+        )
+        {
+            StartOwnershipScan();
+        }
     }
 
     // New protected actions must request a refresh, never trust an old registry.
     public void RefreshOwnership()
     {
         Invalidate();
+        StartOwnershipScan();
+    }
+
+    private void StartOwnershipScan()
+    {
         HasUnavailableResults = false;
-        if (walletConnector == null || !walletConnector.IsConnected) { Fail("Connect a wallet before verification."); return; }
+
+        if (walletConnector == null || !walletConnector.IsConnected)
+        {
+            Fail("Connect a wallet before verification.");
+            return;
+        }
+
+        if (approvedSource == null || !approvedSource.IsConfigured)
+        {
+            Fail("The approved PDT proxy has not been configured.");
+            return;
+        }
+
         sourceChain = ApprovedChain;
         sourceCollection = ApprovedCollection;
-        if (string.IsNullOrWhiteSpace(sourceChain) || !PDTVerificationPolicy.IsAddress(sourceCollection))
-        { Fail("The approved PDT proxy has not been configured."); return; }
+
         if (!(tokenDiscoveryServiceSource is ITokenDiscoveryService discovery))
-        { Fail("A token discovery service is required."); return; }
+        {
+            Fail("A token discovery service is required.");
+            return;
+        }
+
         context = new PDTReadContext(walletConnector, sourceChain);
         IsScanning = true;
         OwnershipScanStarted?.Invoke();
@@ -84,7 +141,11 @@ public class ERC721OwnershipReader : MonoBehaviour
     {
         // Reown finishes dispatching account/network events before the first read.
         yield return null;
-        if (!Current(currentGeneration)) { Fail("Verification unavailable: select the approved PDT network."); yield break; }
+        if (!Current(currentGeneration))
+        {
+            yield break;
+        }
+
         IReadOnlyList<TokenReference> discovered = null;
         string discoveryError = null;
         yield return discovery.DiscoverOwnedTokens(context.Address, sourceChain, sourceCollection,
@@ -96,7 +157,14 @@ public class ERC721OwnershipReader : MonoBehaviour
         foreach (TokenReference token in candidates)
         {
             if (!Current(currentGeneration)) yield break;
-            PDTVerificationPolicy.TryTokenId(token.TokenID, out BigInteger id);
+
+            if (!PDTVerificationPolicy.TryTokenId(token.TokenID, out BigInteger id))
+            {
+                knownCandidates.Remove(token);
+                Debug.LogWarning("Rejected an invalid cached PDT token identity.");
+                continue;
+            }
+
             var owner = new PDTReadResult<string>();
             yield return PDTChainRead.Run(() => AppKit.Evm.ReadContractAsync<string>(
                 sourceCollection, OwnerABI, "ownerOf", new object[] { id }), context, owner, id);
@@ -148,17 +216,25 @@ public class ERC721OwnershipReader : MonoBehaviour
     {
         if (expected != generation) return false;
         if (IsVerificationContextCurrent) return true;
-        Invalidate();
+        Invalidate(false);
         Fail("Verification unavailable: wallet or approved network context changed.");
         return false;
     }
-    private void Invalidate()
+
+    private void Invalidate(bool stopActiveScan = true)
     {
         generation++;
-        if (scan != null) StopCoroutine(scan);
+
+        if (stopActiveScan && scan != null)
+        {
+            StopCoroutine(scan);
+        }
+
         scan = null;
         IsScanning = false;
         context = null;
+        sourceChain = null;
+        sourceCollection = null;
         verifiedTokens.Clear();
         // Cancel downstream work even if the old ownership list was empty.
         OwnershipCleared?.Invoke();
@@ -166,6 +242,7 @@ public class ERC721OwnershipReader : MonoBehaviour
     private void Fail(string message)
     {
         IsScanning = false;
+        scan = null;
         HasUnavailableResults = true;
         OwnershipScanFailed?.Invoke(message);
         Debug.LogWarning(message);

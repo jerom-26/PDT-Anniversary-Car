@@ -35,9 +35,11 @@ public sealed class AlchemyNftDiscoveryService :
         Action<string> onError
     )
     {
-        if (string.IsNullOrWhiteSpace(ownerAddress))
+        if (!PDTVerificationPolicy.IsAddress(ownerAddress?.Trim()))
         {
-            onError?.Invoke("Alchemy discovery requires a wallet address.");
+            onError?.Invoke(
+                "Alchemy discovery requires a valid EVM wallet address."
+            );
             yield break;
         }
 
@@ -55,9 +57,11 @@ public sealed class AlchemyNftDiscoveryService :
             yield break;
         }
 
-        if (string.IsNullOrWhiteSpace(collection))
+        if (!PDTVerificationPolicy.IsAddress(collection?.Trim()))
         {
-            onError?.Invoke("Alchemy discovery requires a collection address.");
+            onError?.Invoke(
+                "Alchemy discovery requires a valid collection address."
+            );
             yield break;
         }
 
@@ -69,17 +73,44 @@ public sealed class AlchemyNftDiscoveryService :
             yield break;
         }
 
-        string apiKey = Environment.GetEnvironmentVariable(
-            apiKeyEnvironmentVariable.Trim()
-        );
+        string environmentVariableName = apiKeyEnvironmentVariable.Trim();
+        string apiKey;
+
+        try
+        {
+            apiKey = Environment.GetEnvironmentVariable(
+                environmentVariableName
+            );
+        }
+        catch (Exception)
+        {
+            onError?.Invoke(
+                "Alchemy discovery could not read its API key environment " +
+                "variable."
+            );
+            yield break;
+        }
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             onError?.Invoke(
-                $"Set the {apiKeyEnvironmentVariable.Trim()} environment " +
+                $"Set the {environmentVariableName} environment " +
                 "variable before starting indexed NFT discovery."
             );
             yield break;
+        }
+
+        apiKey = apiKey.Trim();
+
+        foreach (char character in apiKey)
+        {
+            if (char.IsControl(character) || char.IsWhiteSpace(character))
+            {
+                onError?.Invoke(
+                    "Alchemy discovery found an invalid API key value."
+                );
+                yield break;
+            }
         }
 
         string normalizedChain = PolygonAmoyChain;
@@ -105,7 +136,7 @@ public sealed class AlchemyNftDiscoveryService :
                 request.timeout = 30;
                 request.SetRequestHeader(
                     "Authorization",
-                    $"Bearer {apiKey.Trim()}"
+                    $"Bearer {apiKey}"
                 );
                 request.SetRequestHeader("Accept", "application/json");
 
@@ -122,7 +153,7 @@ public sealed class AlchemyNftDiscoveryService :
 
                 if (
                     !TryParseResponse(
-                        request.downloadHandler.text,
+                        request.downloadHandler?.text,
                         out AlchemyOwnedNftsResponse response,
                         out string responseError
                     )
@@ -172,11 +203,11 @@ public sealed class AlchemyNftDiscoveryService :
                         )
                     )
                     {
-                        onError?.Invoke(
-                            "Alchemy returned an invalid token ID for the " +
-                            "approved PDT collection."
+                        Debug.LogWarning(
+                            "Ignored an invalid token identity returned for " +
+                            "the approved PDT collection."
                         );
-                        yield break;
+                        continue;
                     }
 
                     TokenReference tokenReference = new TokenReference(
@@ -293,6 +324,13 @@ public sealed class AlchemyNftDiscoveryService :
         out string errorMessage
     )
     {
+        if (string.IsNullOrWhiteSpace(responseJSON))
+        {
+            response = null;
+            errorMessage = "Alchemy returned an empty NFT ownership response.";
+            return false;
+        }
+
         try
         {
             response = JsonUtility.FromJson<AlchemyOwnedNftsResponse>(

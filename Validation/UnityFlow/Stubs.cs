@@ -90,7 +90,13 @@ public class ReownWalletConnector
 }
 public class VehicleSpawner
 {
+    public OwnedVehicleRegistry Registry;
     public VehicleData Spawned;
-    public bool TrySpawn(VehicleData vehicle) { Spawned = vehicle; return true; }
+    public bool TrySpawn(VehicleData vehicle)
+    {
+        if (Registry == null || !Registry.IsUnlocked(vehicle)) return false;
+        Spawned = vehicle;
+        return true;
+    }
     public void Despawn() => Spawned = null;
 }

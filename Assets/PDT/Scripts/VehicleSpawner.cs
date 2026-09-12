@@ -1,19 +1,48 @@
 using UnityEngine;
 
+[DisallowMultipleComponent]
 public class VehicleSpawner : MonoBehaviour
 {
     [SerializeField] private Transform spawnPoint;
     [SerializeField] private CameraFollow cameraFollow;
+    [SerializeField] private OwnedVehicleRegistry ownedVehicleRegistry;
 
     private GameObject spawnedVehicle;
 
-    public GameObject SpawnedVehicle => spawnedVehicle;
+    private void OnEnable()
+    {
+        if (ownedVehicleRegistry != null)
+        {
+            ownedVehicleRegistry.RegistryCleared += Despawn;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (ownedVehicleRegistry != null)
+        {
+            ownedVehicleRegistry.RegistryCleared -= Despawn;
+        }
+
+        Despawn();
+    }
 
     public bool TrySpawn(VehicleData vehicleData)
     {
         if (vehicleData == null)
         {
             Debug.LogError("Vehicle Data is not assigned.");
+            return false;
+        }
+
+        if (
+            ownedVehicleRegistry == null ||
+            !ownedVehicleRegistry.IsUnlocked(vehicleData)
+        )
+        {
+            Debug.LogError(
+                "Rejected vehicle spawn without a verified entitlement."
+            );
             return false;
         }
 
@@ -64,14 +93,17 @@ public class VehicleSpawner : MonoBehaviour
 
     public void Despawn()
     {
-        if (spawnedVehicle == null)
+        if (spawnedVehicle != null)
         {
-            return;
+            Destroy(spawnedVehicle);
         }
 
-        Destroy(spawnedVehicle);
         spawnedVehicle = null;
-        cameraFollow.SetTarget(null);
+
+        if (cameraFollow != null)
+        {
+            cameraFollow.SetTarget(null);
+        }
     }
 
     private static Transform FindCameraTarget(Transform vehicleRoot)

@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+[RequireComponent(typeof(Rigidbody))]
 public class PlayerCarController : MonoBehaviour
 {
     [SerializeField] private float moveSpeed = 5f;
@@ -13,12 +14,25 @@ public class PlayerCarController : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+
+        if (rb == null)
+        {
+            Debug.LogError(
+                "PlayerCarController requires a Rigidbody component."
+            );
+            enabled = false;
+        }
     }
 
     private void Update()
     {
         moveInput = 0f;
         turnInput = 0f;
+
+        if (Keyboard.current == null)
+        {
+            return;
+        }
 
         if (Keyboard.current.wKey.isPressed)
         {
@@ -43,6 +57,11 @@ public class PlayerCarController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (rb == null)
+        {
+            return;
+        }
+
         MoveCar();
         TurnCar();
     }
