@@ -26,7 +26,10 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
     // Entry point for every new protected driving session/action.
     public void BeginProtectedSession()
     {
-        if (ownershipReader != null) ownershipReader.RefreshOwnership();
+        if (ownershipReader != null)
+        {
+            ownershipReader.RefreshOwnership();
+        }
     }
 
     public event Action EntitlementResolutionStarted;
@@ -103,10 +106,11 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
         StopEntitlementResolution();
         ownedVehicleRegistry.Clear();
         vehicleSpawner.Despawn();
+        HasUnavailableResults = ownershipReader.HasUnavailableResults;
 
         if (verifiedTokens == null || verifiedTokens.Count == 0)
         {
-            Debug.Log(ownershipReader.HasUnavailableResults
+            Debug.Log(HasUnavailableResults
                 ? "Verification incomplete; no fresh vehicle access granted."
                 : "No verified PDT vehicles found for this wallet.");
             return;
@@ -116,7 +120,6 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
             new List<VerifiedNFT>(verifiedTokens);
 
         IsResolving = true;
-        HasUnavailableResults = ownershipReader.HasUnavailableResults;
         EntitlementResolutionStarted?.Invoke();
         entitlementResolutionCoroutine = StartCoroutine(
             ResolveVerifiedEntitlements(tokenSnapshot)
@@ -126,6 +129,7 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
     private void HandleOwnershipCleared()
     {
         StopEntitlementResolution();
+        HasUnavailableResults = false;
 
         if (ownedVehicleRegistry != null)
         {
@@ -152,7 +156,6 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
                     "Ownership verification returned an invalid token " +
                     "reference."
                 );
-
                 continue;
             }
 
@@ -166,13 +169,22 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
                     error => resolutionError = error
                 );
 
-            if (generation != ownershipReader.ScanGeneration || !ownershipReader.IsVerificationContextCurrent)
+            if (
+                generation != ownershipReader.ScanGeneration ||
+                !ownershipReader.IsVerificationContextCurrent
+            )
             {
                 HandleOwnershipCleared();
                 yield break;
             }
-            if (tokenEntitlementServiceSource is ReownEntitlementKeyService direct && direct.LastVerificationUnavailable)
+
+            if (
+                tokenEntitlementServiceSource is ReownEntitlementKeyService direct &&
+                direct.LastVerificationUnavailable
+            )
+            {
                 HasUnavailableResults = true;
+            }
 
             if (!string.IsNullOrWhiteSpace(resolutionError))
             {
@@ -192,16 +204,39 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
                 continue;
             }
 
-            if (!verifiedToken.tokenReference.Equals(resolvedEntitlement.TokenReference))
-            { Debug.LogWarning("Rejected entitlement for a different token reference."); continue; }
+            if (
+                !verifiedToken.tokenReference.Equals(
+                    resolvedEntitlement.TokenReference
+                )
+            )
+            {
+                Debug.LogWarning(
+                    "Rejected entitlement for a different token reference."
+                );
+                continue;
+            }
+
             resolved.Add(resolvedEntitlement);
         }
 
         entitlementResolutionCoroutine = null;
         IsResolving = false;
-        if (generation != ownershipReader.ScanGeneration || !ownershipReader.IsVerificationContextCurrent) yield break;
+
+        if (
+            generation != ownershipReader.ScanGeneration ||
+            !ownershipReader.IsVerificationContextCurrent
+        )
+        {
+            yield break;
+        }
+
         foreach (TokenEntitlement entitlement in resolved)
-            ownedVehicleRegistry.TryRegisterResolvedEntitlement(entitlement, out _);
+        {
+            ownedVehicleRegistry.TryRegisterResolvedEntitlement(
+                entitlement,
+                out _
+            );
+        }
 
         if (ownedVehicleRegistry.UnlockedVehicles.Count == 0)
         {
@@ -217,7 +252,8 @@ public class VerifiedVehicleUnlockCoordinator : MonoBehaviour
         {
             if (
                 !vehicleSpawner.TrySpawn(
-                    ownedVehicleRegistry.UnlockedVehicles[0]
+                    ownedVehicleRegistry.UnlockedVehicles[0],
+                    ownedVehicleRegistry
                 )
             )
             {
