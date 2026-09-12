@@ -17,6 +17,7 @@ public sealed class LegacyMetadataEntitlementService :
     private const string LegacyDreamMobileAssetID = "HW-001";
     private const string TokenURIABI =
         "function tokenURI(uint256 tokenId) view returns (string)";
+    private const float BlockchainRequestTimeoutSeconds = 30f;
 
     [Header("Legacy development fixtures only")]
     [Tooltip(
@@ -45,6 +46,12 @@ public sealed class LegacyMetadataEntitlementService :
             onError?.Invoke(
                 "Legacy entitlement resolution has no metadata reader."
             );
+            yield break;
+        }
+
+        if (!AppKit.IsInitialized)
+        {
+            onError?.Invoke("Legacy entitlement resolution is unavailable before AppKit initialization.");
             yield break;
         }
 
@@ -81,8 +88,18 @@ public sealed class LegacyMetadataEntitlementService :
             yield break;
         }
 
+        float deadline = Time.realtimeSinceStartup +
+            BlockchainRequestTimeoutSeconds;
+
         while (!tokenURITask.IsCompleted)
         {
+            if (Time.realtimeSinceStartup >= deadline)
+            {
+                ObserveLateTask(tokenURITask);
+                onError?.Invoke("Legacy fixture tokenURI lookup timed out.");
+                yield break;
+            }
+
             yield return null;
         }
 
@@ -228,6 +245,13 @@ public sealed class LegacyMetadataEntitlementService :
         out string errorMessage
     )
     {
+        if (task == null)
+        {
+            result = default;
+            errorMessage = "The blockchain request did not start.";
+            return false;
+        }
+
         if (task.IsCanceled)
         {
             result = default;
@@ -258,6 +282,12 @@ public sealed class LegacyMetadataEntitlementService :
         try
         {
             task = taskFactory();
+            if (task == null)
+            {
+                errorMessage = "The blockchain request returned no task.";
+                return false;
+            }
+
             errorMessage = null;
             return true;
         }
@@ -267,5 +297,18 @@ public sealed class LegacyMetadataEntitlementService :
             errorMessage = exception.Message;
             return false;
         }
+    }
+
+    private static void ObserveLateTask<T>(Task<T> task)
+    {
+        if (task == null)
+        {
+            return;
+        }
+
+        _ = task.ContinueWith(
+            completed => { _ = completed.Exception; },
+            TaskContinuationOptions.OnlyOnFaulted
+        );
     }
 }
