@@ -28,7 +28,9 @@ public class NFTMetadataReader : MonoBehaviour
 
         using (UnityWebRequest request = UnityWebRequest.Get(metadataURL))
         {
-            request.timeout = Mathf.Max(1, requestTimeoutSeconds);
+            request.timeout = requestTimeoutSeconds > 0
+                ? requestTimeoutSeconds
+                : 30;
             request.SetRequestHeader("Accept", "application/json");
             yield return request.SendWebRequest();
 
