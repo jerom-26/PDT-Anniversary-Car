@@ -62,7 +62,7 @@ public class ReownWalletConnector : MonoBehaviour
                     await AppKit.ConnectorController.TryResumeSessionAsync();
             }
 
-            if (sessionAvailable && AppKit.Account != null)
+            if (sessionAvailable)
             {
                 SetConnectedAddress(
                     AppKit.Account.Address,
@@ -243,14 +243,7 @@ public class ReownWalletConnector : MonoBehaviour
         Connector.AccountChangedEventArgs eventArgs
     )
     {
-        string address = eventArgs.Account?.Address;
-        if (string.IsNullOrWhiteSpace(address))
-        {
-            ClearConnectedContext(true);
-            return;
-        }
-
-        SetConnectedAddress(address, eventArgs.Account.ChainId);
+        SetConnectedAddress(eventArgs.Account.Address, eventArgs.Account.ChainId);
     }
 
     private void HandleAccountDisconnected(
