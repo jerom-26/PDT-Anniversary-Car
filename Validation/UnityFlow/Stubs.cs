@@ -91,6 +91,12 @@ public class ReownWalletConnector
 public class VehicleSpawner
 {
     public VehicleData Spawned;
-    public bool TrySpawn(VehicleData vehicle) { Spawned = vehicle; return true; }
+    public bool TrySpawn(VehicleData vehicle, OwnedVehicleRegistry authorization)
+    {
+        if (vehicle == null || authorization == null || !authorization.IsUnlocked(vehicle))
+            return false;
+        Spawned = vehicle;
+        return true;
+    }
     public void Despawn() => Spawned = null;
 }
