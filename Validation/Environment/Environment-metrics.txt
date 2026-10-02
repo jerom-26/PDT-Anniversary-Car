@@ -1,0 +1,7 @@
+Loop: 830.5 m
+Road width: 10 m
+Shoulders: 2 m each
+Maximum grade: 2.7%
+Minimum centreline bend radius: 24.9 m
+Visual car bounds: (1.10, 0.58, 2.00)
+Casual loop at 8-12 m/s: 69-104 seconds

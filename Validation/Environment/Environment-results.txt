@@ -1,0 +1,11 @@
+PASS: Closed road mesh has matching seam vertices
+PASS: Road grades remain below 4% with no jump ramps
+PASS: 2640 road/shoulder collision probes have no gaps or terrain intrusions
+PASS: Original spawn point lands on level paved arrival area
+PASS: Unmodified car settles correctly at existing spawn
+PASS: Unmodified controller completed the whole loop at approximately 10 m/s; max lateral deviation 0.39 m
+PASS: Gentle elevation caused no launches; maximum vertical speed 0.28 m/s
+PASS: Guardrail stopped an 8 m/s outward impact without tunnelling (offset 6.04 m)
+PASS: Phase 1 reset preserves the same car and camera target at the original spawn
+PASS: Off-map fall recovery still returns to the existing spawn
+PASS: Environment validation completed with the existing controller unchanged.

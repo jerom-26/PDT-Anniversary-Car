@@ -1,0 +1,6 @@
+PASS: Installed DrivingTestV2 scene loaded successfully.
+PASS: No missing scene scripts.
+PASS: 24 baked mesh references and all materials/shaders/collision meshes resolve.
+PASS: One scenic environment; old Ground disabled.
+PASS: Existing spawn position and single camera retained.
+PASS: Road settings asset resolves.
