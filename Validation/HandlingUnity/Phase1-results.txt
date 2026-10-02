@@ -1,0 +1,30 @@
+PASS: Actual vehicle prefab imports
+PASS: Existing controller and Rigidbody are reused
+PASS: Car material uses controller-managed grip
+PASS: Prefab enables interpolation and continuous dynamic collision detection
+PASS: Actual prefab settles on its box collider
+PASS: Acceleration is gradual after 0.2 seconds
+PASS: Forward speed settles at 16 m/s
+PASS: Opposite input brakes without instant reverse
+PASS: Holding brake engages capped reverse after stopping
+PASS: Forward input brakes reverse travel first
+PASS: Forward drive resumes after reverse braking
+PASS: Actual prefab settles on its box collider
+PASS: Releasing throttle coasts rather than stopping instantly
+PASS: Steering still works while coasting
+PASS: Actual prefab settles on its box collider
+PASS: No steering in place
+PASS: High-speed steering sensitivity is reduced
+PASS: Reverse travel reverses steering direction
+PASS: Actual prefab settles on its box collider
+PASS: Grip removes lateral sliding while preserving forward travel
+PASS: Input wakes a sleeping car and restores traction
+PASS: Airborne input leaves gravity active without drive or steering forces
+PASS: Manual reset restores upright spawn pose and clears all momentum
+PASS: Reset preserves vehicle identity and camera target
+PASS: Falling below the recovery threshold automatically resets
+PASS: Actual prefab settles on its box collider
+PASS: Wall impact does not tunnel or drop through the ground
+PASS: Existing pitch and roll locks keep the car upright after impact
+PASS: Each dynamically instantiated car remembers its own spawn position and heading
+PASS: All Phase 1 runtime physics checks completed.

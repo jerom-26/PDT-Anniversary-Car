@@ -98,7 +98,7 @@ BoxCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1668884884344715700}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 13400000, guid: ebd236d251aa42e297ac03b33f4ac72b, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -172,9 +172,9 @@ Rigidbody:
   m_ImplicitTensor: 1
   m_UseGravity: 1
   m_IsKinematic: 0
-  m_Interpolate: 0
+  m_Interpolate: 1
   m_Constraints: 80
-  m_CollisionDetection: 0
+  m_CollisionDetection: 2
 --- !u!114 &2743138182948050447
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -187,8 +187,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b267f0ad5072ae4eadf8552a83afad0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCarController
-  moveSpeed: 5
+  maxForwardSpeed: 16
+  maxReverseSpeed: 5
+  acceleration: 8
+  reverseAcceleration: 5
+  braking: 18
+  coastingDeceleration: 2.5
   turnSpeed: 90
+  highSpeedSteeringMultiplier: 0.4
+  fullSteeringSpeed: 3
+  steeringResponse: 6
+  lateralGrip: 10
+  maxGripAcceleration: 25
+  fallResetDistance: 15
 --- !u!1 &3124875901552228650
 GameObject:
   m_ObjectHideFlags: 0
